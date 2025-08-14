@@ -2,7 +2,12 @@ module agent
 
 go 1.25.0
 
-require github.com/invopop/jsonschema v0.13.0
+require (
+	github.com/chzyer/readline v1.5.1
+	github.com/invopop/jsonschema v0.13.0
+)
+
+require golang.org/x/sys v0.29.0 // indirect
 
 require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect

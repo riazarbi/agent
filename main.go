@@ -1,15 +1,16 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
 	"strings"
 
+	"github.com/chzyer/readline"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
 	"github.com/invopop/jsonschema"
@@ -21,6 +22,7 @@ type Agent struct {
 	getUserMessage func() (string, bool)
 	tools          []ToolDefinition
 	baseURL        string
+	rl             *readline.Instance
 }
 
 type ToolDefinition struct {
@@ -110,29 +112,42 @@ func main() {
 		option.WithBaseURL(baseURL),
 	)
 
-	scanner := bufio.NewScanner(os.Stdin)
+	rl, err := readline.New("")
+	if err != nil {
+		fmt.Printf("Error initializing readline: %v\n", err)
+		return
+	}
+	defer rl.Close()
+
 	getUserMessage := func() (string, bool) {
-		if !scanner.Scan() {
+		rl.SetPrompt("\u001b[94mYou\u001b[0m: ")
+		line, err := rl.Readline()
+		if err != nil {
+			if err == io.EOF {
+				return "", false
+			}
+			fmt.Printf("Error reading input: %v\n", err)
 			return "", false
 		}
-		return scanner.Text(), true
+		return line, true
 	}
 
 	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition}
-	agent := NewAgent(&client, getUserMessage, tools, baseURL)
-	err := agent.Run(context.TODO())
+	agent := NewAgent(&client, getUserMessage, tools, baseURL, rl)
+	err = agent.Run(context.TODO())
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
 	}
 }
 
 // Constructor
-func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools []ToolDefinition, baseURL string) *Agent {
+func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools []ToolDefinition, baseURL string, rl *readline.Instance) *Agent {
 	return &Agent{
 		client:         client,
 		getUserMessage: getUserMessage,
 		tools:          tools,
 		baseURL:        baseURL,
+		rl:             rl,
 	}
 }
 
@@ -145,7 +160,6 @@ func (a *Agent) Run(ctx context.Context) error {
 	readUserInput := true
 	for {
 		if readUserInput {
-			fmt.Print("\u001b[94mYou\u001b[0m: ")
 			userInput, ok := a.getUserMessage()
 			if !ok {
 				break
