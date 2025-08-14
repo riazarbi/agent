@@ -10,6 +10,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/chzyer/readline"
 	"github.com/openai/openai-go/v2"
@@ -19,12 +20,13 @@ import (
 
 // Core types
 type Agent struct {
-	client         *openai.Client
-	getUserMessage func() (string, bool)
-	tools          []ToolDefinition
-	baseURL        string
-	rl             *readline.Instance
-	singleShot     bool
+	client                *openai.Client
+	getUserMessage       func() (string, bool)
+	tools                []ToolDefinition
+	baseURL              string
+	rl                   *readline.Instance
+	singleShot           bool
+	transitionToInteractive bool
 }
 
 type ToolDefinition struct {
@@ -98,7 +100,15 @@ func main() {
 	// Parse command line flags
 	promptFile := flag.String("f", "", "Path to prompt file for single-shot mode")
 	flag.StringVar(promptFile, "prompt-file", "", "Path to prompt file for single-shot mode")
+	continueChat := flag.Bool("continue", false, "Continue in interactive mode after processing prompt file")
+	timeout := flag.Int("timeout", 60, "Timeout in seconds for non-interactive mode")
 	flag.Parse()
+
+	// Validate flags
+	if *continueChat && *promptFile == "" {
+		fmt.Println("Error: --continue flag can only be used with --f/--prompt-file")
+		os.Exit(1)
+	}
 
 	// Get environment variables with defaults
 	baseURL := os.Getenv("AGENT_BASE_URL")
@@ -111,7 +121,8 @@ func main() {
 		apiKey = os.Getenv("ANTHROPIC_API_KEY")
 	}
 	if apiKey == "" {
-		apiKey = "e14b8969-65a1-43cf-9189-956ff255e756"
+		fmt.Println("Error: AGENT_API_KEY or ANTHROPIC_API_KEY environment variable must be set")
+		os.Exit(1)
 	}
 
 	client := openai.NewClient(
@@ -123,7 +134,19 @@ func main() {
 	
 	var agent *Agent
 	if *promptFile != "" {
-		// Single-shot mode
+		const maxPromptSize = 1024 * 1024 // 1MB max
+		
+		// Single-shot mode or initial prompt with continue
+		fileInfo, err := os.Stat(*promptFile)
+		if err != nil {
+			fmt.Printf("Error accessing prompt file: %v\n", err)
+			return
+		}
+		if fileInfo.Size() > maxPromptSize {
+			fmt.Printf("Error: prompt file too large (max %d bytes)\n", maxPromptSize)
+			return
+		}
+		
 		content, err := os.ReadFile(*promptFile)
 		if err != nil {
 			fmt.Printf("Error reading prompt file: %v\n", err)
@@ -132,17 +155,42 @@ func main() {
 		
 		promptContent := string(content)
 		firstCall := true
+
+		// Initialize readline if we're going to continue
+		var rl *readline.Instance
+		if *continueChat {
+			rl, err = readline.New("")
+			if err != nil {
+				fmt.Printf("Error initializing readline: %v\n", err)
+				return
+			}
+			defer rl.Close()
+		}
 		
-		getUserMessage := func() (string, bool) {
+		initialGetUserMessage := func() (string, bool) {
 			if !firstCall {
+				if *continueChat {
+					// Switch to interactive mode
+					rl.SetPrompt("\u001b[94mYou\u001b[0m: ")
+					line, err := rl.Readline()
+					if err != nil {
+						if err == io.EOF {
+							return "", false
+						}
+						fmt.Printf("Error reading input: %v\n", err)
+						return "", false
+					}
+					return line, true
+				}
 				return "", false
 			}
 			firstCall = false
 			return promptContent, true
 		}
 		
-		agent = NewAgent(&client, getUserMessage, tools, baseURL, nil)
-		agent.singleShot = true
+		agent = NewAgent(&client, initialGetUserMessage, tools, baseURL, rl)
+		agent.singleShot = !*continueChat
+		agent.transitionToInteractive = *continueChat
 	} else {
 		// Interactive mode
 		rl, err := readline.New("")
@@ -168,7 +216,13 @@ func main() {
 		agent = NewAgent(&client, getUserMessage, tools, baseURL, rl)
 		agent.singleShot = false
 	}
-	if err := agent.Run(context.TODO()); err != nil {
+	ctx := context.Background()
+	if agent.singleShot {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, time.Duration(*timeout)*time.Second)
+		defer cancel()
+	}
+	if err := agent.Run(ctx); err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
 	}
 }
@@ -188,7 +242,7 @@ func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools
 func (a *Agent) Run(ctx context.Context) error {
 	conversation := []openai.ChatCompletionMessageParamUnion{}
 
-	if !a.singleShot {
+	if !a.singleShot || a.transitionToInteractive {
 		fmt.Printf("Chat with Agent at %s (use 'ctrl-c' to quit)\n", a.baseURL)
 	}
 
@@ -229,7 +283,7 @@ func (a *Agent) Run(ctx context.Context) error {
 			readUserInput = true
 			// Log conversation state after text-only response
 			a.logConversation(conversation)
-			if a.singleShot {
+			if a.singleShot && !a.transitionToInteractive {
 				break
 			}
 			continue
@@ -287,13 +341,17 @@ func (a *Agent) runInference(ctx context.Context, conversation []openai.ChatComp
 }
 
 func (a *Agent) logConversation(conversation []openai.ChatCompletionMessageParamUnion) {
+	if os.Getenv("LOG_FILE") == "" {
+		return  // Logging disabled
+	}
+	
 	data, err := json.MarshalIndent(conversation, "", "  ")
 	if err != nil {
 		fmt.Printf("Warning: Failed to marshal conversation for logging: %v\n", err)
 		return
 	}
 
-	err = os.WriteFile("agent.log", data, 0644)
+	err = os.WriteFile(os.Getenv("LOG_FILE"), data, 0644)
 	if err != nil {
 		fmt.Printf("Warning: Failed to write conversation log: %v\n", err)
 	}
