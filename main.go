@@ -10,21 +10,23 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/openai/openai-go/v2"
+	"github.com/openai/openai-go/v2/option"
 	"github.com/invopop/jsonschema"
 )
 
 // Core types
 type Agent struct {
-	client         *anthropic.Client
+	client         *openai.Client
 	getUserMessage func() (string, bool)
 	tools          []ToolDefinition
+	baseURL        string
 }
 
 type ToolDefinition struct {
-	Name        string                         `json:"name"`
-	Description string                         `json:"description"`
-	InputSchema anthropic.ToolInputSchemaParam `json:"input_schema"`
+	Name        string                       `json:"name"`
+	Description string                       `json:"description"`
+	InputSchema openai.FunctionParameters   `json:"input_schema"`
 	Function    func(input json.RawMessage) (string, error)
 }
 
@@ -89,7 +91,24 @@ var DeleteFileDefinition = ToolDefinition{
 
 // Main function
 func main() {
-	client := anthropic.NewClient()
+	// Get environment variables with defaults
+	baseURL := os.Getenv("AGENT_BASE_URL")
+	if baseURL == "" {
+		baseURL = "https://api.anthropic.com/v1/"
+	}
+	
+	apiKey := os.Getenv("AGENT_API_KEY")
+	if apiKey == "" {
+		apiKey = os.Getenv("ANTHROPIC_API_KEY")
+	}
+	if apiKey == "" {
+		apiKey = "e14b8969-65a1-43cf-9189-956ff255e756"
+	}
+
+	client := openai.NewClient(
+		option.WithAPIKey(apiKey),
+		option.WithBaseURL(baseURL),
+	)
 
 	scanner := bufio.NewScanner(os.Stdin)
 	getUserMessage := func() (string, bool) {
@@ -100,7 +119,7 @@ func main() {
 	}
 
 	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition}
-	agent := NewAgent(&client, getUserMessage, tools)
+	agent := NewAgent(&client, getUserMessage, tools, baseURL)
 	err := agent.Run(context.TODO())
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
@@ -108,19 +127,20 @@ func main() {
 }
 
 // Constructor
-func NewAgent(client *anthropic.Client, getUserMessage func() (string, bool), tools []ToolDefinition) *Agent {
+func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools []ToolDefinition, baseURL string) *Agent {
 	return &Agent{
 		client:         client,
 		getUserMessage: getUserMessage,
 		tools:          tools,
+		baseURL:        baseURL,
 	}
 }
 
 // Agent methods
 func (a *Agent) Run(ctx context.Context) error {
-	conversation := []anthropic.MessageParam{}
+	conversation := []openai.ChatCompletionMessageParamUnion{}
 
-	fmt.Println("Chat with Claude (use 'ctrl-c' to quit)")
+	fmt.Printf("Chat with Agent at %s (use 'ctrl-c' to quit)\n", a.baseURL)
 
 	readUserInput := true
 	for {
@@ -131,34 +151,40 @@ func (a *Agent) Run(ctx context.Context) error {
 				break
 			}
 
-			userMessage := anthropic.NewUserMessage(anthropic.NewTextBlock(userInput))
+			userMessage := openai.UserMessage(userInput)
 			conversation = append(conversation, userMessage)
 		}
 
-		message, err := a.runInference(ctx, conversation)
+		completion, err := a.runInference(ctx, conversation)
 		if err != nil {
 			return err
 		}
-		conversation = append(conversation, message.ToParam())
+		
+		assistantMessage := completion.Choices[0].Message
+		conversation = append(conversation, assistantMessage.ToParam())
 
-		toolResults := []anthropic.ContentBlockParamUnion{}
-		for _, content := range message.Content {
-			switch content.Type {
-			case "text":
-				fmt.Printf("\u001b[93mClaude\u001b[0m: %s\n", content.Text)
-			case "tool_use":
-				result := a.executeTool(content.ID, content.Name, content.Input)
-				toolResults = append(toolResults, result)
-			}
+		toolResults := []openai.ChatCompletionMessageParamUnion{}
+		
+		// Handle text content
+		if assistantMessage.Content != "" {
+			fmt.Printf("\u001b[93mAgent\u001b[0m: %s\n", assistantMessage.Content)
 		}
+		
+		// Handle tool calls
+		for _, toolCall := range assistantMessage.ToolCalls {
+			result := a.executeTool(toolCall.ID, toolCall.Function.Name, json.RawMessage(toolCall.Function.Arguments))
+			toolResults = append(toolResults, result)
+		}
+		
 		if len(toolResults) == 0 {
 			readUserInput = true
 			// Log conversation state after text-only response
 			a.logConversation(conversation)
 			continue
 		}
+		
 		readUserInput = false
-		conversation = append(conversation, anthropic.NewUserMessage(toolResults...))
+		conversation = append(conversation, toolResults...)
 
 		// Log conversation state after each cycle
 		a.logConversation(conversation)
@@ -167,7 +193,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	return nil
 }
 
-func (a *Agent) executeTool(id, name string, input json.RawMessage) anthropic.ContentBlockParamUnion {
+func (a *Agent) executeTool(id, name string, input json.RawMessage) openai.ChatCompletionMessageParamUnion {
 	var toolDef ToolDefinition
 	var found bool
 	for _, tool := range a.tools {
@@ -178,39 +204,37 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) anthropic.Co
 		}
 	}
 	if !found {
-		return anthropic.NewToolResultBlock(id, "tool not found", true)
+		return openai.ToolMessage("tool not found", id)
 	}
 
-	fmt.Printf("\u001b[92mtool\u001b[0m: %s(%s)\n", name, input)
+	fmt.Printf("\u001b[92mTool\u001b[0m: %s(%s)\n", name, input)
 	response, err := toolDef.Function(input)
 	if err != nil {
-		return anthropic.NewToolResultBlock(id, err.Error(), true)
+		return openai.ToolMessage(err.Error(), id)
 	}
-	return anthropic.NewToolResultBlock(id, response, false)
+	return openai.ToolMessage(response, id)
 }
 
-func (a *Agent) runInference(ctx context.Context, conversation []anthropic.MessageParam) (*anthropic.Message, error) {
-	anthropicTools := []anthropic.ToolUnionParam{}
+func (a *Agent) runInference(ctx context.Context, conversation []openai.ChatCompletionMessageParamUnion) (*openai.ChatCompletion, error) {
+	openaiTools := []openai.ChatCompletionToolUnionParam{}
 	for _, tool := range a.tools {
-		anthropicTools = append(anthropicTools, anthropic.ToolUnionParam{
-			OfTool: &anthropic.ToolParam{
-				Name:        tool.Name,
-				Description: anthropic.String(tool.Description),
-				InputSchema: tool.InputSchema,
-			},
-		})
+		openaiTools = append(openaiTools, openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+			Name:        tool.Name,
+			Description: openai.String(tool.Description),
+			Parameters:  tool.InputSchema,
+		}))
 	}
 
-	message, err := a.client.Messages.New(ctx, anthropic.MessageNewParams{
-		Model:     anthropic.ModelClaude3_7SonnetLatest,
-		MaxTokens: int64(1024),
+	completion, err := a.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
+		Model:     "claude-3-5-sonnet-20241022",
+		MaxTokens: openai.Int(1024),
 		Messages:  conversation,
-		Tools:     anthropicTools,
+		Tools:     openaiTools,
 	})
-	return message, err
+	return completion, err
 }
 
-func (a *Agent) logConversation(conversation []anthropic.MessageParam) {
+func (a *Agent) logConversation(conversation []openai.ChatCompletionMessageParamUnion) {
 	data, err := json.MarshalIndent(conversation, "", "  ")
 	if err != nil {
 		fmt.Printf("Warning: Failed to marshal conversation for logging: %v\n", err)
@@ -224,7 +248,7 @@ func (a *Agent) logConversation(conversation []anthropic.MessageParam) {
 }
 
 // Utility functions
-func GenerateSchema[T any]() anthropic.ToolInputSchemaParam {
+func GenerateSchema[T any]() openai.FunctionParameters {
 	reflector := jsonschema.Reflector{
 		AllowAdditionalProperties: false,
 		DoNotReference:            true,
@@ -233,9 +257,37 @@ func GenerateSchema[T any]() anthropic.ToolInputSchemaParam {
 
 	schema := reflector.Reflect(v)
 
-	return anthropic.ToolInputSchemaParam{
-		Properties: schema.Properties,
+	// Convert jsonschema.Schema to openai.FunctionParameters format
+	properties := make(map[string]any)
+	if schema.Properties != nil {
+		for pair := schema.Properties.Oldest(); pair != nil; pair = pair.Next() {
+			properties[pair.Key] = convertSchemaProperty(pair.Value)
+		}
 	}
+
+	result := openai.FunctionParameters{
+		"type":       "object",
+		"properties": properties,
+	}
+	
+	if len(schema.Required) > 0 {
+		result["required"] = schema.Required
+	}
+	
+	return result
+}
+
+func convertSchemaProperty(prop *jsonschema.Schema) map[string]any {
+	result := make(map[string]any)
+	
+	if prop.Type != "" {
+		result["type"] = prop.Type
+	}
+	if prop.Description != "" {
+		result["description"] = prop.Description
+	}
+	
+	return result
 }
 
 // Tool implementations
