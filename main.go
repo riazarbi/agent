@@ -43,10 +43,15 @@ type EditFileInput struct {
 	NewStr string `json:"new_str" jsonschema_description:"Text to replace old_str with"`
 }
 
+type DeleteFileInput struct {
+	Path string `json:"path" jsonschema_description:"The relative path of the file to delete"`
+}
+
 // Tool schemas
 var ReadFileInputSchema = GenerateSchema[ReadFileInput]()
 var ListFilesInputSchema = GenerateSchema[ListFilesInput]()
 var EditFileInputSchema = GenerateSchema[EditFileInput]()
+var DeleteFileInputSchema = GenerateSchema[DeleteFileInput]()
 
 // Tool definitions
 var ReadFileDefinition = ToolDefinition{
@@ -75,6 +80,13 @@ If the file specified with path doesn't exist, it will be created.
 	Function:    EditFile,
 }
 
+var DeleteFileDefinition = ToolDefinition{
+	Name:        "delete_file",
+	Description: "Delete a file at the given relative path. Use with caution as this operation cannot be undone.",
+	InputSchema: DeleteFileInputSchema,
+	Function:    DeleteFile,
+}
+
 // Main function
 func main() {
 	client := anthropic.NewClient()
@@ -87,7 +99,7 @@ func main() {
 		return scanner.Text(), true
 	}
 
-	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition}
+	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition}
 	agent := NewAgent(&client, getUserMessage, tools)
 	err := agent.Run(context.TODO())
 	if err != nil {
@@ -317,4 +329,26 @@ func createNewFile(filePath, content string) (string, error) {
 	}
 
 	return fmt.Sprintf("Successfully created file %s", filePath), nil
+}
+
+func DeleteFile(input json.RawMessage) (string, error) {
+	deleteFileInput := DeleteFileInput{}
+	err := json.Unmarshal(input, &deleteFileInput)
+	if err != nil {
+		return "", err
+	}
+
+	if deleteFileInput.Path == "" {
+		return "", fmt.Errorf("path cannot be empty")
+	}
+
+	err = os.Remove(deleteFileInput.Path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("file does not exist: %s", deleteFileInput.Path)
+		}
+		return "", fmt.Errorf("failed to delete file: %w", err)
+	}
+
+	return fmt.Sprintf("Successfully deleted file %s", deleteFileInput.Path), nil
 }
