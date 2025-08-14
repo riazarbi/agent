@@ -153,10 +153,15 @@ func (a *Agent) Run(ctx context.Context) error {
 		}
 		if len(toolResults) == 0 {
 			readUserInput = true
+			// Log conversation state after text-only response
+			a.logConversation(conversation)
 			continue
 		}
 		readUserInput = false
 		conversation = append(conversation, anthropic.NewUserMessage(toolResults...))
+
+		// Log conversation state after each cycle
+		a.logConversation(conversation)
 	}
 
 	return nil
@@ -203,6 +208,19 @@ func (a *Agent) runInference(ctx context.Context, conversation []anthropic.Messa
 		Tools:     anthropicTools,
 	})
 	return message, err
+}
+
+func (a *Agent) logConversation(conversation []anthropic.MessageParam) {
+	data, err := json.MarshalIndent(conversation, "", "  ")
+	if err != nil {
+		fmt.Printf("Warning: Failed to marshal conversation for logging: %v\n", err)
+		return
+	}
+
+	err = os.WriteFile("agent.log", data, 0644)
+	if err != nil {
+		fmt.Printf("Warning: Failed to write conversation log: %v\n", err)
+	}
 }
 
 // Utility functions
