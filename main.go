@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -23,6 +24,7 @@ type Agent struct {
 	tools          []ToolDefinition
 	baseURL        string
 	rl             *readline.Instance
+	singleShot     bool
 }
 
 type ToolDefinition struct {
@@ -93,6 +95,11 @@ var DeleteFileDefinition = ToolDefinition{
 
 // Main function
 func main() {
+	// Parse command line flags
+	promptFile := flag.String("f", "", "Path to prompt file for single-shot mode")
+	flag.StringVar(promptFile, "prompt-file", "", "Path to prompt file for single-shot mode")
+	flag.Parse()
+
 	// Get environment variables with defaults
 	baseURL := os.Getenv("AGENT_BASE_URL")
 	if baseURL == "" {
@@ -112,30 +119,56 @@ func main() {
 		option.WithBaseURL(baseURL),
 	)
 
-	rl, err := readline.New("")
-	if err != nil {
-		fmt.Printf("Error initializing readline: %v\n", err)
-		return
-	}
-	defer rl.Close()
-
-	getUserMessage := func() (string, bool) {
-		rl.SetPrompt("\u001b[94mYou\u001b[0m: ")
-		line, err := rl.Readline()
+	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition}
+	
+	var agent *Agent
+	if *promptFile != "" {
+		// Single-shot mode
+		content, err := os.ReadFile(*promptFile)
 		if err != nil {
-			if err == io.EOF {
+			fmt.Printf("Error reading prompt file: %v\n", err)
+			return
+		}
+		
+		promptContent := string(content)
+		firstCall := true
+		
+		getUserMessage := func() (string, bool) {
+			if !firstCall {
 				return "", false
 			}
-			fmt.Printf("Error reading input: %v\n", err)
-			return "", false
+			firstCall = false
+			return promptContent, true
 		}
-		return line, true
-	}
+		
+		agent = NewAgent(&client, getUserMessage, tools, baseURL, nil)
+		agent.singleShot = true
+	} else {
+		// Interactive mode
+		rl, err := readline.New("")
+		if err != nil {
+			fmt.Printf("Error initializing readline: %v\n", err)
+			return
+		}
+		defer rl.Close()
 
-	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition}
-	agent := NewAgent(&client, getUserMessage, tools, baseURL, rl)
-	err = agent.Run(context.TODO())
-	if err != nil {
+		getUserMessage := func() (string, bool) {
+			rl.SetPrompt("\u001b[94mYou\u001b[0m: ")
+			line, err := rl.Readline()
+			if err != nil {
+				if err == io.EOF {
+					return "", false
+				}
+				fmt.Printf("Error reading input: %v\n", err)
+				return "", false
+			}
+			return line, true
+		}
+		
+		agent = NewAgent(&client, getUserMessage, tools, baseURL, rl)
+		agent.singleShot = false
+	}
+	if err := agent.Run(context.TODO()); err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
 	}
 }
@@ -155,7 +188,9 @@ func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools
 func (a *Agent) Run(ctx context.Context) error {
 	conversation := []openai.ChatCompletionMessageParamUnion{}
 
-	fmt.Printf("Chat with Agent at %s (use 'ctrl-c' to quit)\n", a.baseURL)
+	if !a.singleShot {
+		fmt.Printf("Chat with Agent at %s (use 'ctrl-c' to quit)\n", a.baseURL)
+	}
 
 	readUserInput := true
 	for {
@@ -194,6 +229,9 @@ func (a *Agent) Run(ctx context.Context) error {
 			readUserInput = true
 			// Log conversation state after text-only response
 			a.logConversation(conversation)
+			if a.singleShot {
+				break
+			}
 			continue
 		}
 		
@@ -340,6 +378,11 @@ func ListFiles(input json.RawMessage) (string, error) {
 		relPath, err := filepath.Rel(dir, path)
 		if err != nil {
 			return err
+		}
+
+		// Skip .git directory
+		if info.IsDir() && (relPath == ".git" || strings.HasPrefix(relPath, ".git/")) {
+			return filepath.SkipDir
 		}
 
 		if relPath != "." {
