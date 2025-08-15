@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"embed"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
@@ -61,11 +63,17 @@ type DeleteFileInput struct {
 	Path string `json:"path" jsonschema_description:"The relative path of the file to delete"`
 }
 
+type GrepInput struct {
+	Pattern string   `json:"pattern" jsonschema_description:"The search pattern to look for (literal or regex)"`
+	Args    []string `json:"args,omitempty" jsonschema_description:"Optional ripgrep arguments (e.g. --ignore-case, --hidden)"`
+}
+
 // Tool schemas
 var ReadFileInputSchema = GenerateSchema[ReadFileInput]()
 var ListFilesInputSchema = GenerateSchema[ListFilesInput]()
 var EditFileInputSchema = GenerateSchema[EditFileInput]()
 var DeleteFileInputSchema = GenerateSchema[DeleteFileInput]()
+var GrepInputSchema = GenerateSchema[GrepInput]()
 
 // Tool definitions
 var ReadFileDefinition = ToolDefinition{
@@ -99,6 +107,13 @@ var DeleteFileDefinition = ToolDefinition{
 	Description: "Delete a file at the given relative path. Use with caution as this operation cannot be undone.",
 	InputSchema: DeleteFileInputSchema,
 	Function:    DeleteFile,
+}
+
+var GrepDefinition = ToolDefinition{
+	Name:        "grep",
+	Description: "Search for patterns in files using ripgrep. Supports both literal and regex patterns.",
+	InputSchema: GrepInputSchema,
+	Function:    Grep,
 }
 
 // Main function
@@ -154,7 +169,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition}
+	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition, GrepDefinition}
 	
 	var agent *Agent
 	if *promptFile != "" {
@@ -734,4 +749,42 @@ func checkAndOfferAgentInit() error {
 	
 	fmt.Println("Continuing without .agent directory...")
 	return nil
+}
+
+func Grep(input json.RawMessage) (string, error) {
+	grepInput := GrepInput{}
+	err := json.Unmarshal(input, &grepInput)
+	if err != nil {
+		return "", err
+	}
+
+	if grepInput.Pattern == "" {
+		return "", fmt.Errorf("search pattern cannot be empty")
+	}
+
+	// Start with base command and pattern
+	args := append([]string{grepInput.Pattern}, grepInput.Args...)
+	
+	cmd := exec.Command("rg", args...)
+	
+	// Capture both stdout and stderr
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	
+	err = cmd.Run()
+	
+	// rg exits with status 1 when no matches are found - this is not an error for us
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 1 {
+			return "No matches found", nil
+		}
+		// For any other error, return stderr output
+		if stderr.Len() > 0 {
+			return "", fmt.Errorf(stderr.String())
+		}
+		return "", err
+	}
+
+	return stdout.String(), nil
 }
