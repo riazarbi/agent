@@ -32,7 +32,7 @@ type Agent struct {
 	rl                   *readline.Instance
 	singleShot           bool
 	transitionToInteractive bool
-	prePrompt         string
+	prePrompts         []string
 }
 
 type ToolDefinition struct {
@@ -109,7 +109,7 @@ func main() {
 	continueChat := flag.Bool("continue", false, "Continue in interactive mode after processing prompt file")
 	timeout := flag.Int("timeout", 60, "Timeout in seconds for non-interactive mode")
 	initFlag := flag.Bool("init", false, "Initialize .agent directory")
-	prePrompt := flag.String("preprompt", "", "Override system prompt (defaults to .agent/prompts/system.md)")
+	prePrompts := flag.String("preprompts", "", "Path to preprompts file (defaults to .agent/preprompts)")
 	flag.Parse()
 
 	// Validate flags
@@ -212,7 +212,12 @@ func main() {
 			return promptContent, true
 		}
 		
-		agent = NewAgent(&client, initialGetUserMessage, tools, baseURL, rl, getPrePrompt(*prePrompt))
+		prompts, err := getPrePrompts(*prePrompts)
+		if err != nil {
+			fmt.Printf("Error loading preprompts: %v\n", err)
+			os.Exit(1)
+		}
+		agent = NewAgent(&client, initialGetUserMessage, tools, baseURL, rl, prompts)
 		agent.singleShot = !*continueChat
 		agent.transitionToInteractive = *continueChat
 	} else {
@@ -237,7 +242,12 @@ func main() {
 			return line, true
 		}
 		
-		agent = NewAgent(&client, getUserMessage, tools, baseURL, rl, getPrePrompt(*prePrompt))
+		prompts, err := getPrePrompts(*prePrompts)
+		if err != nil {
+			fmt.Printf("Error loading preprompts: %v\n", err)
+			os.Exit(1)
+		}
+		agent = NewAgent(&client, getUserMessage, tools, baseURL, rl, prompts)
 		agent.singleShot = false
 	}
 	ctx := context.Background()
@@ -252,14 +262,14 @@ func main() {
 }
 
 // Constructor
-func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools []ToolDefinition, baseURL string, rl *readline.Instance, prePrompt string) *Agent {
+func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools []ToolDefinition, baseURL string, rl *readline.Instance, prePrompts []string) *Agent {
 	return &Agent{
 		client:         client,
 		getUserMessage: getUserMessage,
 		tools:          tools,
 		baseURL:        baseURL,
 		rl:             rl,
-		prePrompt:   prePrompt,
+		prePrompts:   prePrompts,
 	}
 }
 
@@ -267,9 +277,11 @@ func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools
 func (a *Agent) Run(ctx context.Context) error {
 	conversation := []openai.ChatCompletionMessageParamUnion{}
 
-	// Add system prompt as first message if available
-	if a.prePrompt != "" {
-		conversation = append(conversation, openai.UserMessage(a.prePrompt))
+	// Add preprompts as user messages in order
+	for _, prePrompt := range a.prePrompts {
+		if prePrompt != "" {
+			conversation = append(conversation, openai.UserMessage(prePrompt))
+		}
 	}
 
 	if !a.singleShot || a.transitionToInteractive {
@@ -374,8 +386,14 @@ func (a *Agent) runInference(ctx context.Context, conversation []openai.ChatComp
 }
 
 func (a *Agent) logConversation(conversation []openai.ChatCompletionMessageParamUnion) {
-	if os.Getenv("LOG_FILE") == "" {
-		return  // Logging disabled
+	logFile := os.Getenv("LOG_FILE")
+	if logFile == "" {
+		logFile = ".agent/agent.log"
+		// Ensure .agent directory exists
+		if err := os.MkdirAll(".agent", 0755); err != nil {
+			fmt.Printf("Warning: Failed to create .agent directory: %v\n", err)
+			return
+		}
 	}
 	
 	data, err := json.MarshalIndent(conversation, "", "  ")
@@ -384,13 +402,62 @@ func (a *Agent) logConversation(conversation []openai.ChatCompletionMessageParam
 		return
 	}
 
-	err = os.WriteFile(os.Getenv("LOG_FILE"), data, 0644)
+	err = os.WriteFile(logFile, data, 0644)
 	if err != nil {
 		fmt.Printf("Warning: Failed to write conversation log: %v\n", err)
 	}
 }
 
-// getPrePrompt reads the system prompt from file or uses override
+// loadPrePrompts reads preprompts list file and loads all prompt contents
+func loadPrePrompts(filePath string) ([]string, error) {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read preprompts file %s: %w", filePath, err)
+	}
+
+	lines := strings.Split(string(content), "\n")
+	var prompts []string
+
+	for lineNum, line := range lines {
+		line = strings.TrimSpace(line)
+		
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Validate file exists
+		if _, err := os.Stat(line); os.IsNotExist(err) {
+			return nil, fmt.Errorf("prompt file %s (line %d) does not exist", line, lineNum+1)
+		}
+
+		// Read prompt content
+		promptContent, err := os.ReadFile(line)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read prompt file %s (line %d): %w", line, lineNum+1, err)
+		}
+
+		prompts = append(prompts, string(promptContent))
+	}
+
+	return prompts, nil
+}
+
+// getPrePrompts reads preprompts from a preprompts file or uses override
+func getPrePrompts(prepromptsFile string) ([]string, error) {
+	if prepromptsFile == "" {
+		prepromptsFile = ".agent/preprompts"
+	}
+	
+	// Check if preprompts file exists
+	if _, err := os.Stat(prepromptsFile); os.IsNotExist(err) {
+		return nil, fmt.Errorf("preprompts file %s does not exist", prepromptsFile)
+	}
+	
+	return loadPrePrompts(prepromptsFile)
+}
+
+// getPrePrompt reads the system prompt from file or uses override (legacy - for compatibility)
 func getPrePrompt(override string) string {
 	if override != "" {
 		return override
