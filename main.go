@@ -68,12 +68,17 @@ type GrepInput struct {
 	Args    []string `json:"args,omitempty" jsonschema_description:"Optional ripgrep arguments (e.g. --ignore-case, --hidden)"`
 }
 
+type GlobInput struct {
+	Pattern string `json:"pattern" jsonschema_description:"The glob pattern to match files against (e.g. *.go, **/*.md)"`
+}
+
 // Tool schemas
 var ReadFileInputSchema = GenerateSchema[ReadFileInput]()
 var ListFilesInputSchema = GenerateSchema[ListFilesInput]()
 var EditFileInputSchema = GenerateSchema[EditFileInput]()
 var DeleteFileInputSchema = GenerateSchema[DeleteFileInput]()
 var GrepInputSchema = GenerateSchema[GrepInput]()
+var GlobInputSchema = GenerateSchema[GlobInput]()
 
 // Tool definitions
 var ReadFileDefinition = ToolDefinition{
@@ -114,6 +119,13 @@ var GrepDefinition = ToolDefinition{
 	Description: "Search for patterns in files using ripgrep. Supports both literal and regex patterns.",
 	InputSchema: GrepInputSchema,
 	Function:    Grep,
+}
+
+var GlobDefinition = ToolDefinition{
+	Name:        "glob",
+	Description: "Find files matching a glob pattern. Supports standard glob syntax for file discovery.",
+	InputSchema: GlobInputSchema,
+	Function:    Glob,
 }
 
 // Main function
@@ -169,7 +181,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition, GrepDefinition}
+	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition, GrepDefinition, GlobDefinition}
 	
 	var agent *Agent
 	if *promptFile != "" {
@@ -787,4 +799,32 @@ func Grep(input json.RawMessage) (string, error) {
 	}
 
 	return stdout.String(), nil
+}
+
+func Glob(input json.RawMessage) (string, error) {
+	globInput := GlobInput{}
+	err := json.Unmarshal(input, &globInput)
+	if err != nil {
+		return "", err
+	}
+
+	if globInput.Pattern == "" {
+		return "", fmt.Errorf("glob pattern cannot be empty")
+	}
+
+	matches, err := filepath.Glob(globInput.Pattern)
+	if err != nil {
+		return "", fmt.Errorf("invalid glob pattern: %w", err)
+	}
+
+	if len(matches) == 0 {
+		return "No matches found", nil
+	}
+
+	result, err := json.Marshal(matches)
+	if err != nil {
+		return "", err
+	}
+
+	return string(result), nil
 }
