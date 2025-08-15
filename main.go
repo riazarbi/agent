@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path"
 	"path/filepath"
@@ -17,6 +19,9 @@ import (
 	"github.com/openai/openai-go/v2/option"
 	"github.com/invopop/jsonschema"
 )
+
+//go:embed templates/*
+var templateFS embed.FS
 
 // Core types
 type Agent struct {
@@ -102,12 +107,23 @@ func main() {
 	flag.StringVar(promptFile, "prompt-file", "", "Path to prompt file for single-shot mode")
 	continueChat := flag.Bool("continue", false, "Continue in interactive mode after processing prompt file")
 	timeout := flag.Int("timeout", 60, "Timeout in seconds for non-interactive mode")
+	initFlag := flag.Bool("init", false, "Initialize .agent directory")
 	flag.Parse()
 
 	// Validate flags
 	if *continueChat && *promptFile == "" {
 		fmt.Println("Error: --continue flag can only be used with --f/--prompt-file")
 		os.Exit(1)
+	}
+
+	// Handle init command
+	if *initFlag {
+		if err := copyTemplates(); err != nil {
+			fmt.Printf("Error initializing .agent directory: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Successfully initialized .agent directory")
+		return
 	}
 
 	// Get environment variables with defaults
@@ -129,6 +145,12 @@ func main() {
 		option.WithAPIKey(apiKey),
 		option.WithBaseURL(baseURL),
 	)
+
+	// Check for .agent directory and offer to create if missing
+	if err := checkAndOfferAgentInit(); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
 
 	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition}
 	
@@ -438,8 +460,8 @@ func ListFiles(input json.RawMessage) (string, error) {
 			return err
 		}
 
-		// Skip .git directory
-		if info.IsDir() && (relPath == ".git" || strings.HasPrefix(relPath, ".git/")) {
+		// Skip .git and .agent directories
+		if info.IsDir() && (relPath == ".git" || strings.HasPrefix(relPath, ".git/") || relPath == ".agent" || strings.HasPrefix(relPath, ".agent/")) {
 			return filepath.SkipDir
 		}
 
@@ -536,4 +558,88 @@ func DeleteFile(input json.RawMessage) (string, error) {
 	}
 
 	return fmt.Sprintf("Successfully deleted file %s", deleteFileInput.Path), nil
+}
+
+// copyTemplates copies the embedded templates to the .agent directory
+func copyTemplates() error {
+	// Check if .agent directory already exists
+	if _, err := os.Stat(".agent"); err == nil {
+		return fmt.Errorf(".agent directory already exists")
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check .agent directory: %w", err)
+	}
+
+	// Walk through the embedded template filesystem
+	return fs.WalkDir(templateFS, "templates", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return fmt.Errorf("failed to walk template directory: %w", err)
+		}
+
+		// Calculate relative path from templates/ root
+		relPath, err := filepath.Rel("templates", path)
+		if err != nil {
+			return fmt.Errorf("failed to calculate relative path: %w", err)
+		}
+
+		// Skip the root templates directory itself
+		if relPath == "." {
+			return nil
+		}
+
+		// Target path in .agent directory
+		targetPath := filepath.Join(".agent", relPath)
+
+		if d.IsDir() {
+			// Create directory
+			if err := os.MkdirAll(targetPath, 0755); err != nil {
+				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
+			}
+		} else {
+			// Read file from embedded filesystem
+			content, err := fs.ReadFile(templateFS, path)
+			if err != nil {
+				return fmt.Errorf("failed to read embedded file %s: %w", path, err)
+			}
+
+			// Ensure parent directory exists
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+				return fmt.Errorf("failed to create parent directory for %s: %w", targetPath, err)
+			}
+
+			// Write file to target location
+			if err := os.WriteFile(targetPath, content, 0644); err != nil {
+				return fmt.Errorf("failed to write file %s: %w", targetPath, err)
+			}
+		}
+
+		return nil
+	})
+}
+
+// checkAndOfferAgentInit checks if .agent directory exists and offers to create it
+func checkAndOfferAgentInit() error {
+	// Check if .agent directory exists
+	if _, err := os.Stat(".agent"); err == nil {
+		return nil // Directory exists, continue normally
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check .agent directory: %w", err)
+	}
+
+	// .agent directory doesn't exist, prompt user
+	fmt.Print("The .agent directory does not exist. Would you like to create it now? (y/N): ")
+	
+	var response string
+	fmt.Scanln(&response)
+	
+	response = strings.ToLower(strings.TrimSpace(response))
+	if response == "y" || response == "yes" {
+		if err := copyTemplates(); err != nil {
+			return fmt.Errorf("failed to initialize .agent directory: %w", err)
+		}
+		fmt.Println("Successfully initialized .agent directory")
+		return nil
+	}
+	
+	fmt.Println("Continuing without .agent directory...")
+	return nil
 }
