@@ -271,6 +271,9 @@ func (a *Agent) Run(ctx context.Context) error {
 	readUserInput := true
 	for {
 		if readUserInput {
+			if len(conversation) > 0 {
+				fmt.Println() // Add spacing before user input (except first time)
+			}
 			userInput, ok := a.getUserMessage()
 			if !ok {
 				break
