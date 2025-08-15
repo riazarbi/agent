@@ -72,6 +72,10 @@ type GlobInput struct {
 	Pattern string `json:"pattern" jsonschema_description:"The glob pattern to match files against (e.g. *.go, **/*.md)"`
 }
 
+type GitDiffInput struct {
+	// This tool takes no parameters
+}
+
 // Tool schemas
 var ReadFileInputSchema = GenerateSchema[ReadFileInput]()
 var ListFilesInputSchema = GenerateSchema[ListFilesInput]()
@@ -79,6 +83,7 @@ var EditFileInputSchema = GenerateSchema[EditFileInput]()
 var DeleteFileInputSchema = GenerateSchema[DeleteFileInput]()
 var GrepInputSchema = GenerateSchema[GrepInput]()
 var GlobInputSchema = GenerateSchema[GlobInput]()
+var GitDiffInputSchema = GenerateSchema[GitDiffInput]()
 
 // Tool definitions
 var ReadFileDefinition = ToolDefinition{
@@ -126,6 +131,13 @@ var GlobDefinition = ToolDefinition{
 	Description: "Find files matching a glob pattern. Supports standard glob syntax for file discovery.",
 	InputSchema: GlobInputSchema,
 	Function:    Glob,
+}
+
+var GitDiffDefinition = ToolDefinition{
+	Name:        "git_diff",
+	Description: "Returns the output of 'git diff' showing all unstaged changes in the working directory. Use this when you need to see what files have been modified but not yet committed. Do not use this for staged/committed changes.",
+	InputSchema: GitDiffInputSchema,
+	Function:    GitDiff,
 }
 
 // Main function
@@ -181,7 +193,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition, GrepDefinition, GlobDefinition}
+	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition, GrepDefinition, GlobDefinition, GitDiffDefinition}
 	
 	var agent *Agent
 	if *promptFile != "" {
@@ -796,6 +808,35 @@ func Grep(input json.RawMessage) (string, error) {
 			return "", fmt.Errorf(stderr.String())
 		}
 		return "", err
+	}
+
+	return stdout.String(), nil
+}
+
+func GitDiff(input json.RawMessage) (string, error) {
+	// Create git diff command
+	cmd := exec.Command("git", "diff")
+
+	// Capture both stdout and stderr
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	// Execute command
+	err := cmd.Run()
+
+	// Check for errors
+	if err != nil {
+		// If there's stderr output, return that as the error
+		if stderr.Len() > 0 {
+			return "", fmt.Errorf(stderr.String())
+		}
+		return "", err
+	}
+
+	// If there's no output, it means there are no changes
+	if stdout.Len() == 0 {
+		return "No changes found in working directory", nil
 	}
 
 	return stdout.String(), nil
