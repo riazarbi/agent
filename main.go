@@ -32,6 +32,7 @@ type Agent struct {
 	rl                   *readline.Instance
 	singleShot           bool
 	transitionToInteractive bool
+	prePrompt         string
 }
 
 type ToolDefinition struct {
@@ -108,6 +109,7 @@ func main() {
 	continueChat := flag.Bool("continue", false, "Continue in interactive mode after processing prompt file")
 	timeout := flag.Int("timeout", 60, "Timeout in seconds for non-interactive mode")
 	initFlag := flag.Bool("init", false, "Initialize .agent directory")
+	prePrompt := flag.String("preprompt", "", "Override system prompt (defaults to .agent/prompts/system.md)")
 	flag.Parse()
 
 	// Validate flags
@@ -210,7 +212,7 @@ func main() {
 			return promptContent, true
 		}
 		
-		agent = NewAgent(&client, initialGetUserMessage, tools, baseURL, rl)
+		agent = NewAgent(&client, initialGetUserMessage, tools, baseURL, rl, getPrePrompt(*prePrompt))
 		agent.singleShot = !*continueChat
 		agent.transitionToInteractive = *continueChat
 	} else {
@@ -235,7 +237,7 @@ func main() {
 			return line, true
 		}
 		
-		agent = NewAgent(&client, getUserMessage, tools, baseURL, rl)
+		agent = NewAgent(&client, getUserMessage, tools, baseURL, rl, getPrePrompt(*prePrompt))
 		agent.singleShot = false
 	}
 	ctx := context.Background()
@@ -250,19 +252,25 @@ func main() {
 }
 
 // Constructor
-func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools []ToolDefinition, baseURL string, rl *readline.Instance) *Agent {
+func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools []ToolDefinition, baseURL string, rl *readline.Instance, prePrompt string) *Agent {
 	return &Agent{
 		client:         client,
 		getUserMessage: getUserMessage,
 		tools:          tools,
 		baseURL:        baseURL,
 		rl:             rl,
+		prePrompt:   prePrompt,
 	}
 }
 
 // Agent methods
 func (a *Agent) Run(ctx context.Context) error {
 	conversation := []openai.ChatCompletionMessageParamUnion{}
+
+	// Add system prompt as first message if available
+	if a.prePrompt != "" {
+		conversation = append(conversation, openai.UserMessage(a.prePrompt))
+	}
 
 	if !a.singleShot || a.transitionToInteractive {
 		fmt.Printf("Chat with Agent at %s (use 'ctrl-c' to quit)\n", a.baseURL)
@@ -380,6 +388,20 @@ func (a *Agent) logConversation(conversation []openai.ChatCompletionMessageParam
 	if err != nil {
 		fmt.Printf("Warning: Failed to write conversation log: %v\n", err)
 	}
+}
+
+// getPrePrompt reads the system prompt from file or uses override
+func getPrePrompt(override string) string {
+	if override != "" {
+		return override
+	}
+	
+	content, err := os.ReadFile(".agent/prompts/system.md")
+	if err != nil {
+		return "" // No system prompt if file doesn't exist or can't be read
+	}
+	
+	return string(content)
 }
 
 // Utility functions
