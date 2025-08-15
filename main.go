@@ -148,7 +148,7 @@ func main() {
 	continueChat := flag.Bool("continue", false, "Continue in interactive mode after processing prompt file")
 	timeout := flag.Int("timeout", 60, "Timeout in seconds for non-interactive mode")
 	initFlag := flag.Bool("init", false, "Initialize .agent directory")
-	prePrompts := flag.String("preprompts", "", "Path to preprompts file (defaults to .agent/preprompts)")
+	prePrompts := flag.String("preprompts", "", "Path to preprompts file (defaults to .agent/prompts/preprompts)")
 	flag.Parse()
 
 	// Validate flags
@@ -485,7 +485,7 @@ func loadPrePrompts(filePath string) ([]string, error) {
 // getPrePrompts reads preprompts from a preprompts file or uses override
 func getPrePrompts(prepromptsFile string) ([]string, error) {
 	if prepromptsFile == "" {
-		prepromptsFile = ".agent/preprompts"
+		prepromptsFile = ".agent/prompts/preprompts"
 	}
 	
 	// Check if preprompts file exists
@@ -592,7 +592,7 @@ func ListFiles(input json.RawMessage) (string, error) {
 		}
 
 		// Skip .git and .agent directories
-		if info.IsDir() && (relPath == ".git" || strings.HasPrefix(relPath, ".git/") || relPath == ".agent" || strings.HasPrefix(relPath, ".agent/")) {
+		if info.IsDir() && (relPath == ".git" || strings.HasPrefix(relPath, ".git/") || relPath == ".agent/prompts" || strings.HasPrefix(relPath, ".agent/prompts/")) {
 			return filepath.SkipDir
 		}
 
