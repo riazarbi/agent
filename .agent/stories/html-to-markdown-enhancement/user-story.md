@@ -2,6 +2,12 @@
 
 *Enhance web content processing by improving webfetch file extensions and adding HTML-to-Markdown conversion capability to reduce LLM processing overhead from noisy HTML.*
 
+**NOTE TO EXECUTOR**
+This user story is very complex, and may need to be done in stages. Focus on working in stages, recording your progress in this user story, which is at .agent/prompts/stories/html-to-markdown-enhancement/user-story.md and in the TODO list, which is at .agent/TODO.md. 
+
+**IT IS HIGHLY LIKELY YOU WON'T COMPLETE THIS IN ONE SHOT, AND THAT IS OK. FOCUS ON QUALITY, PREFER STOPPING OVER THRASHING**
+
+
 ## Requirements
 
 *Specific, measurable acceptance criteria. These define when the story is complete.*
