@@ -1,2 +1,4 @@
 agent
 agent.log
+.agent/prompts
+.agent/cache

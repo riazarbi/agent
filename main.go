@@ -3,12 +3,16 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -76,7 +80,18 @@ type GitDiffInput struct {
 	// This tool takes no parameters
 }
 
+type WebFetchInput struct {
+	URL string `json:"url" jsonschema_description:"The URL to fetch content from (must start with http:// or https://)"`
+}
+
+// Result from WebFetch operation
+type CacheResult struct {
+	Path       string
+	StatusCode int
+}
+
 // Tool schemas
+var WebFetchInputSchema = GenerateSchema[WebFetchInput]()
 var ReadFileInputSchema = GenerateSchema[ReadFileInput]()
 var ListFilesInputSchema = GenerateSchema[ListFilesInput]()
 var EditFileInputSchema = GenerateSchema[EditFileInput]()
@@ -140,6 +155,73 @@ var GitDiffDefinition = ToolDefinition{
 	Function:    GitDiff,
 }
 
+// Supported content types for WebFetch
+var allowedContentTypes = map[string]string{
+	"text/plain":             ".txt",
+	"text/html":             ".txt",
+	"text/xml":              ".xml",
+	"application/json":      ".json",
+	"application/xml":       ".xml",
+	"application/xhtml+xml": ".xml",
+}
+
+func generateFilename(inputURL string) (string, error) {
+	parsedURL, err := url.Parse(inputURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid URL: %v", err)
+	}
+
+	// Get base components
+	host := strings.ToLower(parsedURL.Host)
+	path := strings.ToLower(parsedURL.Path)
+
+	// Clean the path
+	path = strings.Trim(path, "/")
+	path = strings.ReplaceAll(path, "/", "_")
+	
+	// Generate hash of full URL
+	hasher := sha256.New()
+	hasher.Write([]byte(inputURL))
+	hash := hex.EncodeToString(hasher.Sum(nil))[:8]
+
+	// Build base filename
+	filename := fmt.Sprintf("%s_%s_%s", host, path, hash)
+
+	// Replace invalid characters
+	filename = strings.Map(func(r rune) rune {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '.' {
+			return r
+		}
+		return '_'
+	}, filename)
+
+	return filename, nil
+}
+
+func isAllowedContentType(contentType string) (string, bool) {
+	// Extract base content type
+	base := strings.Split(contentType, ";")[0]
+	
+	// Check for text/* types
+	if strings.HasPrefix(base, "text/") {
+		return ".txt", true
+	}
+	
+	// Check other allowed types
+	if ext, ok := allowedContentTypes[base]; ok {
+		return ext, true
+	}
+	
+	return "", false
+}
+
+var WebFetchDefinition = ToolDefinition{
+	Name:        "web_fetch",
+	Description: "Download and cache web content locally. Accepts text/*, application/json, application/xml, and application/xhtml+xml content types. Returns path to cached file.",
+	InputSchema: WebFetchInputSchema,
+	Function:    WebFetch,
+}
+
 // Main function
 func main() {
 	// Parse command line flags
@@ -193,7 +275,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition, GrepDefinition, GlobDefinition, GitDiffDefinition}
+	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition, GrepDefinition, GlobDefinition, GitDiffDefinition, WebFetchDefinition}
 	
 	var agent *Agent
 	if *promptFile != "" {
@@ -840,6 +922,93 @@ func GitDiff(input json.RawMessage) (string, error) {
 	}
 
 	return stdout.String(), nil
+}
+
+func WebFetch(input json.RawMessage) (string, error) {
+	webFetchInput := WebFetchInput{}
+	if err := json.Unmarshal(input, &webFetchInput); err != nil {
+		return "", fmt.Errorf("invalid input: %v", err)
+	}
+
+	// Validate URL
+	if !strings.HasPrefix(webFetchInput.URL, "http://") && !strings.HasPrefix(webFetchInput.URL, "https://") {
+		return "", fmt.Errorf("URL must start with http:// or https://")
+	}
+
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	// Create request
+	req, err := http.NewRequest("GET", webFetchInput.URL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %v", err)
+	}
+
+	// Add standard headers
+	req.Header.Set("User-Agent", "Mozilla/5.0 WebFetch Tool")
+	req.Header.Set("Accept", "text/*, application/json, application/xml, application/xhtml+xml")
+
+	// Make request
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch URL: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Check status code
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("HTTP error: %d %s", resp.StatusCode, resp.Status)
+	}
+
+	// Check content type
+	contentType := resp.Header.Get("Content-Type")
+	extension, allowed := isAllowedContentType(contentType)
+	if !allowed {
+		return "", fmt.Errorf("unsupported content type: %s", contentType)
+	}
+
+	// Generate filename
+	baseFilename, err := generateFilename(webFetchInput.URL)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate filename: %v", err)
+	}
+	filename := baseFilename + extension
+
+	// Create cache directory
+	cacheDir := ".cache/webfetch"
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create cache directory: %v", err)
+	}
+
+	// Create cache file
+	cachePath := filepath.Join(cacheDir, filename)
+	file, err := os.Create(cachePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create cache file: %v", err)
+	}
+	defer file.Close()
+
+	// Write content to file
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		os.Remove(cachePath) // Clean up on error
+		return "", fmt.Errorf("failed to write content: %v", err)
+	}
+
+	result := CacheResult{
+		Path:       cachePath,
+		StatusCode: resp.StatusCode,
+	}
+
+	// Convert result to JSON
+	jsonResult, err := json.Marshal(result)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal result: %v", err)
+	}
+
+	return string(jsonResult), nil
 }
 
 func Glob(input json.RawMessage) (string, error) {
