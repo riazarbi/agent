@@ -17,7 +17,9 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/chzyer/readline"
@@ -29,6 +31,13 @@ import (
 
 //go:embed templates/*
 var templateFS embed.FS
+
+// Session state for todo management
+var (
+	sessionTodos = make(map[string][]TodoItem)
+	sessionMutex sync.RWMutex
+	sessionIDCounter = 1
+)
 
 // Core types
 type Agent struct {
@@ -101,6 +110,22 @@ type ClocInput struct {
 	Args []string `json:"args,omitempty" jsonschema_description:"Optional cloc arguments (e.g. --exclude-dir=.git, path)"`
 }
 
+// Todo management types
+type TodoItem struct {
+	ID       string `json:"id" jsonschema_description:"Unique identifier for the todo item"`
+	Content  string `json:"content" jsonschema_description:"Brief description of the task"`
+	Status   string `json:"status" jsonschema_description:"Current status: pending, in_progress, completed, cancelled"`
+	Priority string `json:"priority" jsonschema_description:"Priority level: high, medium, low"`
+}
+
+type TodoWriteInput struct {
+	Todos []TodoItem `json:"todos" jsonschema_description:"The updated todo list"`
+}
+
+type TodoReadInput struct {
+	// No parameters needed - reads from current session
+}
+
 // Result from WebFetch operation
 type CacheResult struct {
 	Path        string `json:"path"`
@@ -121,6 +146,8 @@ var GitDiffInputSchema = GenerateSchema[GitDiffInput]()
 var HeadInputSchema = GenerateSchema[HeadInput]()
 var TailInputSchema = GenerateSchema[TailInput]()
 var ClocInputSchema = GenerateSchema[ClocInput]()
+var TodoWriteInputSchema = GenerateSchema[TodoWriteInput]()
+var TodoReadInputSchema = GenerateSchema[TodoReadInput]()
 
 // Tool definitions
 var ReadFileDefinition = ToolDefinition{
@@ -273,6 +300,20 @@ var ClocDefinition = ToolDefinition{
 	Function:    Cloc,
 }
 
+var TodoWriteDefinition = ToolDefinition{
+	Name:        "todowrite",
+	Description: "Create and manage structured task lists for complex multi-step operations within the current session. Each todo requires: 'task' (title), 'content' (description), 'status' (pending/in_progress/completed), 'priority' (high/medium/low). Replaces entire todo list. Data is not persistent across sessions.",
+	InputSchema: TodoWriteInputSchema,
+	Function:    TodoWrite,
+}
+
+var TodoReadDefinition = ToolDefinition{
+	Name:        "todoread",
+	Description: "Read the current todo list from session state. Returns structured todos with auto-generated IDs, content, status, and priority. Data is session-only and not persistent across invocations.",
+	InputSchema: TodoReadInputSchema,
+	Function:    TodoRead,
+}
+
 // Main function
 func main() {
 	// Parse command line flags
@@ -326,7 +367,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition, GrepDefinition, GlobDefinition, GitDiffDefinition, WebFetchDefinition, HtmlToMarkdownDefinition, HeadDefinition, TailDefinition, ClocDefinition}
+	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition, GrepDefinition, GlobDefinition, GitDiffDefinition, WebFetchDefinition, HtmlToMarkdownDefinition, HeadDefinition, TailDefinition, ClocDefinition, TodoWriteDefinition, TodoReadDefinition}
 	
 	var agent *Agent
 	if *promptFile != "" {
@@ -1060,6 +1101,168 @@ func WebFetch(input json.RawMessage) (string, error) {
 		return "", fmt.Errorf("failed to marshal result: %v", err)
 	}
 
+	return string(jsonResult), nil
+}
+
+// generateTodoID creates a simple unique ID for todo items
+func generateTodoID() string {
+	sessionMutex.Lock()
+	defer sessionMutex.Unlock()
+	
+	id := "task-" + strconv.Itoa(sessionIDCounter)
+	sessionIDCounter++
+	return id
+}
+
+// getCurrentSessionID creates a simple session identifier
+func getCurrentSessionID() string {
+	// For simplicity, use a single session for now
+	// In a real implementation, this would be based on actual session context
+	return "default"
+}
+
+// validateTodoStatus checks if status is valid
+func validateTodoStatus(status string) bool {
+	validStatuses := map[string]bool{
+		"pending":     true,
+		"in_progress": true,
+		"completed":   true,
+		"cancelled":   true,
+	}
+	return validStatuses[status]
+}
+
+// validateTodoPriority checks if priority is valid
+func validateTodoPriority(priority string) bool {
+	validPriorities := map[string]bool{
+		"high":   true,
+		"medium": true,
+		"low":    true,
+	}
+	return validPriorities[priority]
+}
+
+// TodoWrite manages the todo list for the current session
+func TodoWrite(input json.RawMessage) (string, error) {
+	todoWriteInput := TodoWriteInput{}
+	err := json.Unmarshal(input, &todoWriteInput)
+	if err != nil {
+		return "", fmt.Errorf("invalid input: %v", err)
+	}
+
+	sessionID := getCurrentSessionID()
+	
+	// Validate and process todos
+	var processedTodos []TodoItem
+	inProgressCount := 0
+	
+	for i, todo := range todoWriteInput.Todos {
+		// Generate ID if not provided
+		if todo.ID == "" {
+			todo.ID = generateTodoID()
+		}
+		
+		// Validate status
+		if !validateTodoStatus(todo.Status) {
+			return "", fmt.Errorf("invalid status '%s' for todo %d. Must be one of: pending, in_progress, completed, cancelled", todo.Status, i+1)
+		}
+		
+		// Validate priority
+		if !validateTodoPriority(todo.Priority) {
+			return "", fmt.Errorf("invalid priority '%s' for todo %d. Must be one of: high, medium, low", todo.Priority, i+1)
+		}
+		
+		// Count in_progress todos
+		if todo.Status == "in_progress" {
+			inProgressCount++
+		}
+		
+		// Validate content is not empty
+		if strings.TrimSpace(todo.Content) == "" {
+			return "", fmt.Errorf("todo content cannot be empty for todo %d", i+1)
+		}
+		
+		processedTodos = append(processedTodos, todo)
+	}
+	
+	// Enforce only one in_progress task rule
+	if inProgressCount > 1 {
+		return "", fmt.Errorf("only one task can be 'in_progress' at a time, found %d", inProgressCount)
+	}
+	
+	// Update session state
+	sessionMutex.Lock()
+	sessionTodos[sessionID] = processedTodos
+	sessionMutex.Unlock()
+	
+	// Count non-completed todos for title
+	nonCompletedCount := 0
+	for _, todo := range processedTodos {
+		if todo.Status != "completed" && todo.Status != "cancelled" {
+			nonCompletedCount++
+		}
+	}
+	
+	// Return result
+	result := map[string]interface{}{
+		"title":  fmt.Sprintf("Updated todo list with %d active todos", nonCompletedCount),
+		"output": fmt.Sprintf("Successfully updated %d todos", len(processedTodos)),
+	}
+	
+	jsonResult, err := json.Marshal(result)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal result: %v", err)
+	}
+	
+	return string(jsonResult), nil
+}
+
+// TodoRead retrieves the current todo list from session state
+func TodoRead(input json.RawMessage) (string, error) {
+	sessionID := getCurrentSessionID()
+	
+	sessionMutex.RLock()
+	todos, exists := sessionTodos[sessionID]
+	sessionMutex.RUnlock()
+	
+	if !exists || len(todos) == 0 {
+		result := map[string]interface{}{
+			"title":  "0 todos",
+			"output": "[]",
+		}
+		
+		jsonResult, err := json.Marshal(result)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal result: %v", err)
+		}
+		
+		return string(jsonResult), nil
+	}
+	
+	// Count non-completed todos for title
+	nonCompletedCount := 0
+	for _, todo := range todos {
+		if todo.Status != "completed" && todo.Status != "cancelled" {
+			nonCompletedCount++
+		}
+	}
+	
+	// Convert todos to JSON
+	todosJSON, err := json.Marshal(todos)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal todos: %v", err)
+	}
+	
+	result := map[string]interface{}{
+		"title":  fmt.Sprintf("%d todos", nonCompletedCount),
+		"output": string(todosJSON),
+	}
+	
+	jsonResult, err := json.Marshal(result)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal result: %v", err)
+	}
+	
 	return string(jsonResult), nil
 }
 
