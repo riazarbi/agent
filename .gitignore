@@ -1,4 +1,5 @@
 agent
 agent.log
 .agent/prompts/*
-.cache/*
+.agent/sessions/*
+.agent/cache/*
