@@ -1028,7 +1028,7 @@ func WebFetch(input json.RawMessage) (string, error) {
 	filename := baseFilename + extension
 
 	// Create cache directory
-	cacheDir := ".cache/webfetch"
+	cacheDir := ".agent/cache/webfetch"
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create cache directory: %v", err)
 	}
