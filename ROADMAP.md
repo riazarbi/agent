@@ -7,11 +7,11 @@
 - [x] read_file	Read file contents
 - [x] git_diff Obtain the git diff
 - [x] grep	Search file contents
-- [ ] glob	Find files by pattern
+- [x] glob	Find files by pattern
 - [ ] todowrite	Manage todo lists
 - [ ] todoread	Read todo lists
 - [x] webfetch	Fetch web content
-- [ ] html-to-markdown Convert html content to markdown
+- [x] html-to-markdown Convert html content to markdown
 - [ ] taskfile executor
 
 ## Features
