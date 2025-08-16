@@ -498,8 +498,8 @@ func (a *Agent) runInference(ctx context.Context, conversation []openai.ChatComp
 	}
 
 	completion, err := a.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Model:     "claude-3-5-sonnet-20241022",
-		MaxTokens: openai.Int(1024),
+		Model:     "claude-sonnet-4-20250514",
+		MaxTokens: openai.Int(4096),
 		Messages:  conversation,
 		Tools:     openaiTools,
 	})
