@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,11 +33,14 @@ import (
 //go:embed templates/*
 var templateFS embed.FS
 
-// Session state for todo management
+// Session state for todo management and logging
 var (
 	sessionTodos = make(map[string][]TodoItem)
 	sessionMutex sync.RWMutex
 	sessionIDCounter = 1
+	currentSessionID string // Set at startup: "2024-12-19-14-30-45"
+	currentSessionDir string // Derived: ".agent/sessions/[currentSessionID]/"
+	currentSessionManager *SessionManager // Global reference to current session manager
 )
 
 // Core types
@@ -56,6 +60,19 @@ type ToolDefinition struct {
 	Description string                       `json:"description"`
 	InputSchema openai.FunctionParameters   `json:"input_schema"`
 	Function    func(input json.RawMessage) (string, error)
+}
+
+// Session management types
+type SessionManager struct {
+	SessionID    string                                       `json:"session_id"`    // Format: "2024-12-19-14-30-45"  
+	SessionDir   string                                       `json:"session_dir"`   // Path: ".agent/sessions/[timestamp]/"
+	LogFile      *os.File                                     `json:"-"`             // File handle for agent.log
+	TodosPath    string                                       `json:"todos_path"`    // Path to todos.json
+	Conversation []openai.ChatCompletionMessageParamUnion     `json:"conversation"`  // Loaded from previous session or empty
+}
+
+type SessionTodos struct {
+	Todos []TodoItem `json:"todos"`
 }
 
 // Tool input types
@@ -323,6 +340,7 @@ func main() {
 	timeout := flag.Int("timeout", 60, "Timeout in seconds for non-interactive mode")
 	initFlag := flag.Bool("init", false, "Initialize .agent directory")
 	prePrompts := flag.String("preprompts", "", "Path to preprompts file (defaults to .agent/prompts/preprompts)")
+	resumeSession := flag.String("resume", "", "Resume a specific session by ID (YYYY-MM-DD-HH-MM-SS), or use 'list' to select interactively")
 	flag.Parse()
 
 	// Validate flags
@@ -364,6 +382,13 @@ func main() {
 	// Check for .agent directory and offer to create if missing
 	if err := checkAndOfferAgentInit(); err != nil {
 		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Initialize session management
+	_, err := initializeSession(*resumeSession)
+	if err != nil {
+		fmt.Printf("Error initializing session: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -488,7 +513,16 @@ func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools
 
 // Agent methods
 func (a *Agent) Run(ctx context.Context) error {
-	conversation := []openai.ChatCompletionMessageParamUnion{}
+	// Initialize conversation from session if available, otherwise empty
+	var conversation []openai.ChatCompletionMessageParamUnion
+	if currentSessionDir != "" && currentSessionManager != nil && len(currentSessionManager.Conversation) > 0 {
+		// Resume with existing conversation
+		conversation = currentSessionManager.Conversation
+		fmt.Printf("Resuming session %s with %d previous messages\n", currentSessionID, len(conversation))
+	} else {
+		// Start with empty conversation
+		conversation = []openai.ChatCompletionMessageParamUnion{}
+	}
 
 	// Add preprompts as user messages in order
 	for _, prePrompt := range a.prePrompts {
@@ -599,13 +633,25 @@ func (a *Agent) runInference(ctx context.Context, conversation []openai.ChatComp
 }
 
 func (a *Agent) logConversation(conversation []openai.ChatCompletionMessageParamUnion) {
-	logFile := os.Getenv("LOG_FILE")
-	if logFile == "" {
-		logFile = ".agent/agent.log"
-		// Ensure .agent directory exists
-		if err := os.MkdirAll(".agent", 0755); err != nil {
-			fmt.Printf("Warning: Failed to create .agent directory: %v\n", err)
+	// Use session-specific logging if currentSessionDir is set
+	var logFile string
+	if currentSessionDir != "" {
+		logFile = filepath.Join(currentSessionDir, "agent.log")
+		// Ensure session directory exists
+		if err := os.MkdirAll(currentSessionDir, 0755); err != nil {
+			fmt.Printf("Warning: Failed to create session directory: %v\n", err)
 			return
+		}
+	} else {
+		// Fallback to global log for backward compatibility
+		logFile = os.Getenv("LOG_FILE")
+		if logFile == "" {
+			logFile = ".agent/agent.log"
+			// Ensure .agent directory exists
+			if err := os.MkdirAll(".agent", 0755); err != nil {
+				fmt.Printf("Warning: Failed to create .agent directory: %v\n", err)
+				return
+			}
 		}
 	}
 	
@@ -1114,11 +1160,12 @@ func generateTodoID() string {
 	return id
 }
 
-// getCurrentSessionID creates a simple session identifier
+// getCurrentSessionID returns the current session identifier
 func getCurrentSessionID() string {
-	// For simplicity, use a single session for now
-	// In a real implementation, this would be based on actual session context
-	return "default"
+	if currentSessionID == "" {
+		return "default" // Fallback for backward compatibility
+	}
+	return currentSessionID
 }
 
 // validateTodoStatus checks if status is valid
@@ -1194,6 +1241,15 @@ func TodoWrite(input json.RawMessage) (string, error) {
 	sessionMutex.Lock()
 	sessionTodos[sessionID] = processedTodos
 	sessionMutex.Unlock()
+	
+	// Persist to file if we have a session directory
+	if currentSessionDir != "" {
+		todosPath := filepath.Join(currentSessionDir, "todos.json")
+		sessionTodosData := SessionTodos{Todos: processedTodos}
+		if err := saveTodosToFile(todosPath, sessionTodosData); err != nil {
+			fmt.Printf("Warning: Failed to persist todos to file: %v\n", err)
+		}
+	}
 	
 	// Count non-completed todos for title
 	nonCompletedCount := 0
@@ -1385,6 +1441,288 @@ func Glob(input json.RawMessage) (string, error) {
 	}
 
 	return string(result), nil
+}
+
+// Session management functions
+func generateSessionID() string {
+	return time.Now().Format("2006-01-02-15-04-05")
+}
+
+func initializeSession(resumeSessionID string) (*SessionManager, error) {
+	var sessionID string
+	var isResume bool
+	
+	if resumeSessionID != "" {
+		if resumeSessionID == "list" {
+			// Interactive session selection
+			selectedSession, err := selectSessionInteractively()
+			if err != nil {
+				return nil, err
+			}
+			if selectedSession == "" {
+				// User cancelled or no sessions available, create new session
+				sessionID = generateSessionID()
+				isResume = false
+			} else {
+				sessionID = selectedSession
+				isResume = true
+			}
+		} else {
+			// Specific session ID provided - validate format first
+			if !isValidSessionIDFormat(resumeSessionID) {
+				// Invalid format, offer interactive selection
+				fmt.Printf("Invalid session ID format: %s\n", resumeSessionID)
+				fmt.Println("Session ID should be in format YYYY-MM-DD-HH-MM-SS")
+				fmt.Println("Would you like to select from available sessions? (y/n): ")
+				
+				var response string
+				fmt.Scanln(&response)
+				response = strings.ToLower(strings.TrimSpace(response))
+				
+				if response == "y" || response == "yes" {
+					selectedSession, err := selectSessionInteractively()
+					if err != nil {
+						return nil, err
+					}
+					if selectedSession == "" {
+						sessionID = generateSessionID()
+						isResume = false
+					} else {
+						sessionID = selectedSession
+						isResume = true
+					}
+				} else {
+					return nil, fmt.Errorf("invalid session ID format: %s", resumeSessionID)
+				}
+			} else {
+				sessionID = resumeSessionID
+				isResume = true
+			}
+		}
+	} else {
+		sessionID = generateSessionID()
+		isResume = false
+	}
+	
+	// Set global variables
+	currentSessionID = sessionID
+	currentSessionDir = filepath.Join(".agent", "sessions", sessionID)
+	
+	sessionManager := &SessionManager{
+		SessionID:  sessionID,
+		SessionDir: currentSessionDir,
+		TodosPath:  filepath.Join(currentSessionDir, "todos.json"),
+	}
+	
+	if isResume {
+		// Load existing session
+		if err := loadSession(sessionManager); err != nil {
+			return nil, fmt.Errorf("failed to load session %s: %w", sessionID, err)
+		}
+	} else {
+		// Create new session
+		if err := createNewSession(sessionManager); err != nil {
+			return nil, fmt.Errorf("failed to create new session %s: %w", sessionID, err)
+		}
+	}
+	
+	// Set global reference
+	currentSessionManager = sessionManager
+	
+	return sessionManager, nil
+}
+
+func createNewSession(sm *SessionManager) error {
+	// Create session directory
+	if err := os.MkdirAll(sm.SessionDir, 0755); err != nil {
+		return fmt.Errorf("failed to create session directory: %w", err)
+	}
+	
+	// Create empty agent.log file
+	logPath := filepath.Join(sm.SessionDir, "agent.log")
+	logFile, err := os.Create(logPath)
+	if err != nil {
+		return fmt.Errorf("failed to create agent.log: %w", err)
+	}
+	logFile.Close() // We'll reopen when needed
+	
+	// Initialize empty todos.json
+	emptyTodos := SessionTodos{Todos: []TodoItem{}}
+	if err := saveTodosToFile(sm.TodosPath, emptyTodos); err != nil {
+		return fmt.Errorf("failed to create todos.json: %w", err)
+	}
+	
+	// Initialize empty conversation
+	sm.Conversation = []openai.ChatCompletionMessageParamUnion{}
+	
+	return nil
+}
+
+func loadSession(sm *SessionManager) error {
+	// Check if session directory exists
+	if _, err := os.Stat(sm.SessionDir); os.IsNotExist(err) {
+		return fmt.Errorf("session directory does not exist")
+	}
+	
+	// Load conversation from agent.log
+	logPath := filepath.Join(sm.SessionDir, "agent.log")
+	conversation, err := loadConversationFromFile(logPath)
+	if err != nil {
+		return fmt.Errorf("failed to load conversation: %w", err)
+	}
+	sm.Conversation = conversation
+	
+	// Load todos from todos.json
+	todos, err := loadTodosFromFile(sm.TodosPath)
+	if err != nil {
+		return fmt.Errorf("failed to load todos: %w", err)
+	}
+	
+	// Update session state with loaded todos
+	sessionMutex.Lock()
+	sessionTodos[sm.SessionID] = todos.Todos
+	sessionMutex.Unlock()
+	
+	return nil
+}
+
+func loadConversationFromFile(logPath string) ([]openai.ChatCompletionMessageParamUnion, error) {
+	// Check if file exists
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		// Return empty conversation if file doesn't exist (new session)
+		return []openai.ChatCompletionMessageParamUnion{}, nil
+	}
+	
+	data, err := os.ReadFile(logPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read log file: %w", err)
+	}
+	
+	// Handle empty file
+	if len(data) == 0 {
+		return []openai.ChatCompletionMessageParamUnion{}, nil
+	}
+	
+	var conversation []openai.ChatCompletionMessageParamUnion
+	if err := json.Unmarshal(data, &conversation); err != nil {
+		return nil, fmt.Errorf("failed to parse conversation JSON: %w", err)
+	}
+	
+	return conversation, nil
+}
+
+func loadTodosFromFile(todosPath string) (SessionTodos, error) {
+	// Check if file exists
+	if _, err := os.Stat(todosPath); os.IsNotExist(err) {
+		// Return empty todos if file doesn't exist
+		return SessionTodos{Todos: []TodoItem{}}, nil
+	}
+	
+	data, err := os.ReadFile(todosPath)
+	if err != nil {
+		return SessionTodos{}, fmt.Errorf("failed to read todos file: %w", err)
+	}
+	
+	// Handle empty file
+	if len(data) == 0 {
+		return SessionTodos{Todos: []TodoItem{}}, nil
+	}
+	
+	var todos SessionTodos
+	if err := json.Unmarshal(data, &todos); err != nil {
+		return SessionTodos{}, fmt.Errorf("failed to parse todos JSON: %w", err)
+	}
+	
+	return todos, nil
+}
+
+func saveTodosToFile(todosPath string, todos SessionTodos) error {
+	data, err := json.MarshalIndent(todos, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal todos: %w", err)
+	}
+	
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(todosPath), 0755); err != nil {
+		return fmt.Errorf("failed to create todos directory: %w", err)
+	}
+	
+	return os.WriteFile(todosPath, data, 0644)
+}
+
+func listAvailableSessions() ([]string, error) {
+	sessionsDir := ".agent/sessions"
+	
+	// Check if sessions directory exists
+	if _, err := os.Stat(sessionsDir); os.IsNotExist(err) {
+		return []string{}, nil
+	}
+	
+	entries, err := os.ReadDir(sessionsDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read sessions directory: %w", err)
+	}
+	
+	var sessions []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			// Validate session ID format (YYYY-MM-DD-HH-MM-SS)
+			sessionID := entry.Name()
+			if isValidSessionIDFormat(sessionID) {
+				sessions = append(sessions, sessionID)
+			}
+		}
+	}
+	
+	return sessions, nil
+}
+
+func isValidSessionIDFormat(sessionID string) bool {
+	// Check if format matches YYYY-MM-DD-HH-MM-SS
+	_, err := time.Parse("2006-01-02-15-04-05", sessionID)
+	return err == nil
+}
+
+func selectSessionInteractively() (string, error) {
+	sessions, err := listAvailableSessions()
+	if err != nil {
+		return "", fmt.Errorf("failed to list available sessions: %w", err)
+	}
+	
+	if len(sessions) == 0 {
+		fmt.Println("No previous sessions found. Creating new session...")
+		return "", nil
+	}
+	
+	// Sort sessions in descending order (newest first)
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i] > sessions[j]
+	})
+	
+	fmt.Println("Available sessions:")
+	for i, session := range sessions {
+		fmt.Printf("  %d) %s\n", i+1, session)
+	}
+	fmt.Printf("  %d) Create new session\n", len(sessions)+1)
+	fmt.Printf("\nSelect a session (1-%d): ", len(sessions)+1)
+	
+	var choice int
+	_, err = fmt.Scanf("%d", &choice)
+	if err != nil {
+		return "", fmt.Errorf("invalid input: please enter a number")
+	}
+	
+	if choice < 1 || choice > len(sessions)+1 {
+		return "", fmt.Errorf("invalid choice: please select a number between 1 and %d", len(sessions)+1)
+	}
+	
+	if choice == len(sessions)+1 {
+		// User chose to create new session
+		return "", nil
+	}
+	
+	// Return selected session (convert from 1-based to 0-based index)
+	return sessions[choice-1], nil
 }
 
 func HtmlToMarkdown(input json.RawMessage) (string, error) {
