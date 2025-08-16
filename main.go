@@ -24,6 +24,7 @@ import (
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
 	"github.com/invopop/jsonschema"
+	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 )
 
 //go:embed templates/*
@@ -84,14 +85,20 @@ type WebFetchInput struct {
 	URL string `json:"url" jsonschema_description:"The URL to fetch content from (must start with http:// or https://)"`
 }
 
+type HtmlToMarkdownInput struct {
+	Path string `json:"path" jsonschema_description:"Input HTML file path"`
+}
+
 // Result from WebFetch operation
 type CacheResult struct {
-	Path       string
-	StatusCode int
+	Path        string `json:"path"`
+	StatusCode  int    `json:"statusCode"`
+	ContentType string `json:"contentType"`
 }
 
 // Tool schemas
 var WebFetchInputSchema = GenerateSchema[WebFetchInput]()
+var HtmlToMarkdownInputSchema = GenerateSchema[HtmlToMarkdownInput]()
 var ReadFileInputSchema = GenerateSchema[ReadFileInput]()
 var ListFilesInputSchema = GenerateSchema[ListFilesInput]()
 var EditFileInputSchema = GenerateSchema[EditFileInput]()
@@ -158,11 +165,11 @@ var GitDiffDefinition = ToolDefinition{
 // Supported content types for WebFetch
 var allowedContentTypes = map[string]string{
 	"text/plain":             ".txt",
-	"text/html":             ".txt",
+	"text/html":             ".html",
 	"text/xml":              ".xml",
 	"application/json":      ".json",
 	"application/xml":       ".xml",
-	"application/xhtml+xml": ".xml",
+	"application/xhtml+xml": ".html",
 }
 
 func generateFilename(inputURL string) (string, error) {
@@ -201,15 +208,16 @@ func generateFilename(inputURL string) (string, error) {
 func isAllowedContentType(contentType string) (string, bool) {
 	// Extract base content type
 	base := strings.Split(contentType, ";")[0]
+	base = strings.TrimSpace(base)
 	
-	// Check for text/* types
-	if strings.HasPrefix(base, "text/") {
-		return ".txt", true
-	}
-	
-	// Check other allowed types
+	// Check specific allowed types first
 	if ext, ok := allowedContentTypes[base]; ok {
 		return ext, true
+	}
+	
+	// Check for other text/* types (default to .txt)
+	if strings.HasPrefix(base, "text/") {
+		return ".txt", true
 	}
 	
 	return "", false
@@ -220,6 +228,13 @@ var WebFetchDefinition = ToolDefinition{
 	Description: "Download and cache web content locally. Accepts text/*, application/json, application/xml, and application/xhtml+xml content types. Returns path to cached file.",
 	InputSchema: WebFetchInputSchema,
 	Function:    WebFetch,
+}
+
+var HtmlToMarkdownDefinition = ToolDefinition{
+	Name:        "html_to_markdown",
+	Description: "Convert an HTML file to clean Markdown format, removing non-text content like images, videos, scripts, and styles. Saves output with same base filename but .md extension.",
+	InputSchema: HtmlToMarkdownInputSchema,
+	Function:    HtmlToMarkdown,
 }
 
 // Main function
@@ -275,7 +290,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition, GrepDefinition, GlobDefinition, GitDiffDefinition, WebFetchDefinition}
+	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition, GrepDefinition, GlobDefinition, GitDiffDefinition, WebFetchDefinition, HtmlToMarkdownDefinition}
 	
 	var agent *Agent
 	if *promptFile != "" {
@@ -998,8 +1013,9 @@ func WebFetch(input json.RawMessage) (string, error) {
 	}
 
 	result := CacheResult{
-		Path:       cachePath,
-		StatusCode: resp.StatusCode,
+		Path:        cachePath,
+		StatusCode:  resp.StatusCode,
+		ContentType: contentType,
 	}
 
 	// Convert result to JSON
@@ -1037,4 +1053,61 @@ func Glob(input json.RawMessage) (string, error) {
 	}
 
 	return string(result), nil
+}
+
+func HtmlToMarkdown(input json.RawMessage) (string, error) {
+	htmlToMarkdownInput := HtmlToMarkdownInput{}
+	if err := json.Unmarshal(input, &htmlToMarkdownInput); err != nil {
+		return "", fmt.Errorf("invalid input: %v", err)
+	}
+
+	if htmlToMarkdownInput.Path == "" {
+		return "", fmt.Errorf("path cannot be empty")
+	}
+
+	// Check if input file exists
+	if _, err := os.Stat(htmlToMarkdownInput.Path); os.IsNotExist(err) {
+		return "", fmt.Errorf("input file does not exist: %s", htmlToMarkdownInput.Path)
+	}
+
+	// Read HTML file
+	htmlContent, err := os.ReadFile(htmlToMarkdownInput.Path)
+	if err != nil {
+		return "", fmt.Errorf("failed to read HTML file: %v", err)
+	}
+
+	// Convert HTML to Markdown
+	markdown, err := htmltomarkdown.ConvertString(string(htmlContent))
+	if err != nil {
+		return "", fmt.Errorf("failed to convert HTML to markdown: %v", err)
+	}
+
+	// Generate output filename: replace .html with .md, or append .md if no extension
+	outputPath := htmlToMarkdownInput.Path
+	ext := filepath.Ext(outputPath)
+	if ext != "" {
+		outputPath = strings.TrimSuffix(outputPath, ext) + ".md"
+	} else {
+		outputPath = outputPath + ".md"
+	}
+
+	// Write markdown to output file
+	err = os.WriteFile(outputPath, []byte(markdown), 0644)
+	if err != nil {
+		return "", fmt.Errorf("failed to write markdown file: %v", err)
+	}
+
+	// Return result as JSON
+	result := map[string]interface{}{
+		"inputPath":  htmlToMarkdownInput.Path,
+		"outputPath": outputPath,
+		"success":    true,
+	}
+
+	jsonResult, err := json.Marshal(result)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal result: %v", err)
+	}
+
+	return string(jsonResult), nil
 }
