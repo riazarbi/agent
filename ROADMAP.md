@@ -13,6 +13,9 @@
 - [x] webfetch	Fetch web content
 - [x] html-to-markdown Convert html content to markdown
 - [ ] taskfile executor
+- [x] cloc
+- [x] head
+- [x] tail
 
 ## Features
 
@@ -20,9 +23,10 @@
 - [ ] Implement Taskfile-based tool calling for arbitrary, tightly scoped tool calls.
 - [x] Implement preprompt tooling
 - [ ] Add testing rules to prompts
+- [ ] Add manuals directory for tools and pep8 etc
 
 ## Tech Debt
 
 - [ ] Implement extensive unit testing
 - [ ] Implement extensive integration testing
-- [ ] Refactor into separate files as per .agent/prompts/rules/go_code_oragnisation.md
+- [ ] Refactor into separate files as per .agent/prompts/rules/go_code_organisation.md

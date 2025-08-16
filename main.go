@@ -89,6 +89,18 @@ type HtmlToMarkdownInput struct {
 	Path string `json:"path" jsonschema_description:"Input HTML file path"`
 }
 
+type HeadInput struct {
+	Args []string `json:"args,omitempty" jsonschema_description:"Optional head arguments (e.g. -n 20, filename)"`
+}
+
+type TailInput struct {
+	Args []string `json:"args,omitempty" jsonschema_description:"Optional tail arguments (e.g. -n 20, -f, filename)"`
+}
+
+type ClocInput struct {
+	Args []string `json:"args,omitempty" jsonschema_description:"Optional cloc arguments (e.g. --exclude-dir=.git, path)"`
+}
+
 // Result from WebFetch operation
 type CacheResult struct {
 	Path        string `json:"path"`
@@ -106,6 +118,9 @@ var DeleteFileInputSchema = GenerateSchema[DeleteFileInput]()
 var GrepInputSchema = GenerateSchema[GrepInput]()
 var GlobInputSchema = GenerateSchema[GlobInput]()
 var GitDiffInputSchema = GenerateSchema[GitDiffInput]()
+var HeadInputSchema = GenerateSchema[HeadInput]()
+var TailInputSchema = GenerateSchema[TailInput]()
+var ClocInputSchema = GenerateSchema[ClocInput]()
 
 // Tool definitions
 var ReadFileDefinition = ToolDefinition{
@@ -237,6 +252,27 @@ var HtmlToMarkdownDefinition = ToolDefinition{
 	Function:    HtmlToMarkdown,
 }
 
+var HeadDefinition = ToolDefinition{
+	Name:        "head",
+	Description: "Show first N lines of a file (default 10 lines). Useful for quickly inspecting the beginning of files without reading the entire content.",
+	InputSchema: HeadInputSchema,
+	Function:    Head,
+}
+
+var TailDefinition = ToolDefinition{
+	Name:        "tail",
+	Description: "Show last N lines of a file (default 10 lines). Useful for checking recent content or log file endings.",
+	InputSchema: TailInputSchema,
+	Function:    Tail,
+}
+
+var ClocDefinition = ToolDefinition{
+	Name:        "cloc",
+	Description: "Count lines of code with language breakdown and statistics. Useful for analyzing codebase size and composition.",
+	InputSchema: ClocInputSchema,
+	Function:    Cloc,
+}
+
 // Main function
 func main() {
 	// Parse command line flags
@@ -290,7 +326,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition, GrepDefinition, GlobDefinition, GitDiffDefinition, WebFetchDefinition, HtmlToMarkdownDefinition}
+	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition, GrepDefinition, GlobDefinition, GitDiffDefinition, WebFetchDefinition, HtmlToMarkdownDefinition, HeadDefinition, TailDefinition, ClocDefinition}
 	
 	var agent *Agent
 	if *promptFile != "" {
@@ -1027,6 +1063,99 @@ func WebFetch(input json.RawMessage) (string, error) {
 	return string(jsonResult), nil
 }
 
+func Head(input json.RawMessage) (string, error) {
+	headInput := HeadInput{}
+	err := json.Unmarshal(input, &headInput)
+	if err != nil {
+		return "", err
+	}
+
+	// Start with base command
+	args := headInput.Args
+	
+	cmd := exec.Command("head", args...)
+	
+	// Capture both stdout and stderr
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	
+	err = cmd.Run()
+	
+	// Check for errors
+	if err != nil {
+		// If there's stderr output, return that as the error
+		if stderr.Len() > 0 {
+			return "", fmt.Errorf(stderr.String())
+		}
+		return "", err
+	}
+
+	return stdout.String(), nil
+}
+
+func Tail(input json.RawMessage) (string, error) {
+	tailInput := TailInput{}
+	err := json.Unmarshal(input, &tailInput)
+	if err != nil {
+		return "", err
+	}
+
+	// Start with base command
+	args := tailInput.Args
+	
+	cmd := exec.Command("tail", args...)
+	
+	// Capture both stdout and stderr
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	
+	err = cmd.Run()
+	
+	// Check for errors
+	if err != nil {
+		// If there's stderr output, return that as the error
+		if stderr.Len() > 0 {
+			return "", fmt.Errorf(stderr.String())
+		}
+		return "", err
+	}
+
+	return stdout.String(), nil
+}
+
+func Cloc(input json.RawMessage) (string, error) {
+	clocInput := ClocInput{}
+	err := json.Unmarshal(input, &clocInput)
+	if err != nil {
+		return "", err
+	}
+
+	// Start with base command
+	args := clocInput.Args
+	
+	cmd := exec.Command("cloc", args...)
+	
+	// Capture both stdout and stderr
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	
+	err = cmd.Run()
+	
+	// Check for errors
+	if err != nil {
+		// If there's stderr output, return that as the error
+		if stderr.Len() > 0 {
+			return "", fmt.Errorf(stderr.String())
+		}
+		return "", err
+	}
+
+	return stdout.String(), nil
+}
+
 func Glob(input json.RawMessage) (string, error) {
 	globInput := GlobInput{}
 	err := json.Unmarshal(input, &globInput)
@@ -1111,3 +1240,5 @@ func HtmlToMarkdown(input json.RawMessage) (string, error) {
 
 	return string(jsonResult), nil
 }
+
+
