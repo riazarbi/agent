@@ -744,7 +744,7 @@ func getPrePrompt(override string) string {
 		return override
 	}
 	
-	content, err := os.ReadFile(".agent/prompts/system.md")
+	content, err := os.ReadFile(".agent/prompts/system/system.md")
 	if err != nil {
 		return "" // No system prompt if file doesn't exist or can't be read
 	}
@@ -1091,91 +1091,86 @@ func GitDiff(input json.RawMessage) (string, error) {
 }
 
 func WebFetch(input json.RawMessage) (string, error) {
-	webFetchInput := WebFetchInput{}
-	if err := json.Unmarshal(input, &webFetchInput); err != nil {
-		return "", fmt.Errorf("invalid input: %v", err)
-	}
+    var webFetchInput WebFetchInput
+    err := json.Unmarshal(input, &webFetchInput)
+    if err != nil {
+        return "", fmt.Errorf("invalid input: %w", err)
+    }
 
 	// Validate URL
 	if !strings.HasPrefix(webFetchInput.URL, "http://") && !strings.HasPrefix(webFetchInput.URL, "https://") {
 		return "", fmt.Errorf("URL must start with http:// or https://")
 	}
 
-	// Create HTTP client with timeout
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
+    // Create HTTP client with timeout
+    client := &http.Client{
+        Timeout: 30 * time.Second,
+    }
 
-	// Create request
-	req, err := http.NewRequest("GET", webFetchInput.URL, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %v", err)
-	}
+    // Create request
+    req, err := http.NewRequest("GET", webFetchInput.URL, nil)
+    if err != nil {
+        return "", fmt.Errorf("failed to create request: %w", err)
+    }
 
 	// Add standard headers
 	req.Header.Set("User-Agent", "Mozilla/5.0 WebFetch Tool")
 	req.Header.Set("Accept", "text/*, application/json, application/xml, application/xhtml+xml")
 
-	// Make request
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to fetch URL: %v", err)
-	}
-	defer resp.Body.Close()
+    // Make request
+    resp, err := client.Do(req)
+    if err != nil {
+        return "", fmt.Errorf("HTTP GET error: %w", err)
+    }
+    defer resp.Body.Close()
 
-	// Check status code
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("HTTP error: %d %s", resp.StatusCode, resp.Status)
-	}
+    if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+        return "", fmt.Errorf("HTTP request failed with status code: %d", resp.StatusCode)
+    }
 
-	// Check content type
-	contentType := resp.Header.Get("Content-Type")
-	extension, allowed := isAllowedContentType(contentType)
-	if !allowed {
-		return "", fmt.Errorf("unsupported content type: %s", contentType)
-	}
 
-	// Generate filename
-	baseFilename, err := generateFilename(webFetchInput.URL)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate filename: %v", err)
-	}
-	filename := baseFilename + extension
+    // Read the response body
+    body, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return "", fmt.Errorf("error reading response body: %w", err)
+    }
 
-	// Create cache directory
-	cacheDir := ".agent/cache/webfetch"
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create cache directory: %v", err)
-	}
+    // Generate filename
+    baseFilename, err := generateFilename(webFetchInput.URL)
+    if err != nil {
+        return "", fmt.Errorf("failed to generate filename: %v", err)
+    }
+    extension, allowed := isAllowedContentType(resp.Header.Get("Content-Type"))
+    if !allowed {
+        return "", fmt.Errorf("unsupported content type: %s", resp.Header.Get("Content-Type"))
+    }
+    filename := baseFilename + extension
 
-	// Create cache file
-	cachePath := filepath.Join(cacheDir, filename)
-	file, err := os.Create(cachePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to create cache file: %v", err)
-	}
-	defer file.Close()
+    // Create cache directory
+    cacheDir := ".agent/cache/webfetch"
+    if err := os.MkdirAll(cacheDir, 0755); err != nil {
+        return "", fmt.Errorf("failed to create cache directory: %w", err)
+    }
 
-	// Write content to file
-	_, err = io.Copy(file, resp.Body)
-	if err != nil {
-		os.Remove(cachePath) // Clean up on error
-		return "", fmt.Errorf("failed to write content: %v", err)
-	}
+    // Create cache file path
+    cacheFilePath := filepath.Join(cacheDir, filename)
+    file, err := os.Create(cacheFilePath)
+    if err != nil {
+        return "", fmt.Errorf("failed to create cache file: %w", err)
+    }
+    defer file.Close()
 
-	result := CacheResult{
-		Path:        cachePath,
-		StatusCode:  resp.StatusCode,
-		ContentType: contentType,
-	}
+    // Write response to cache file
+    _, err = file.Write(body)
+    if err != nil {
+        os.Remove(cacheFilePath) // Clean up on error
+        return "", fmt.Errorf("failed to write content: %w", err)
+    }
 
-	// Convert result to JSON
-	jsonResult, err := json.Marshal(result)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal result: %v", err)
-	}
+    // Construct result string, including status code
+    result := fmt.Sprintf("{\"path\": \"%s\", \"statusCode\": %d, \"contentType\": \"%s\"}", cacheFilePath, resp.StatusCode, resp.Header.Get("Content-Type"))
 
-	return string(jsonResult), nil
+    return result, nil
 }
 
 // generateTodoID creates a simple unique ID for todo items
