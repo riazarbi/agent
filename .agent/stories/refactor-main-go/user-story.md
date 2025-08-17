@@ -4,6 +4,9 @@
 
 ## Requirements
 
+**Focus on moving JUST ONE tool first, and getting it to build and run. ONce that is complete, you can follow similar patterns for the others.**
+
+
 - Create a new directory named `tools/`.
 - Read the content of `main.go`.
 - Identify and extract the code related to each tool's definition (structs, functions, etc.) from `main.go`.
@@ -19,7 +22,6 @@
 - The refactoring must adhere to Go coding standards and best practices.
 - No external dependencies should be introduced.
 - Each tool's code must be placed in its own file in the `tools/` directory.
-- The main.go file is very large. Be conservative in your read_file and edit_file tool use.
 
 ## Domain
 
@@ -58,7 +60,7 @@ type ToolDefinition struct { ... }
 
 ## Notes from the last attempt
 
-Your attempts to make a main.go.bak fail, so one has manually been created for you already. 
+1. Your attempts to make a main.go.bak fail, so one has manually been created for you already. 
 
 The last attempt at this user story failed. These are the executors notes from that session:
 
