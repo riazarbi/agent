@@ -5,7 +5,13 @@
 - [x] delete_file	Modify existing files
 - [x] list_files	List directory contents
 - [x] read_file	Read file contents
-- [ ] write
+- [ ] create_file
+- [ ] write_file
+- [ ] move_file
+- [ ] create_directory
+- [ ] delete_directory
+- [ ] archive
+- [ ] expand webfetch
 - [ ] multiedit - see https://gist.github.com/wong2/e0f34aac66caf890a332f7b6f9e2ba8f#multiedit
 - [x] git_diff Obtain the git diff
 - [x] grep	Search file contents
@@ -28,9 +34,15 @@
 - [ ] Add testing rules to prompts
 - [ ] Add manuals directory for tools and pep8 etc
 - [ ] Configurable .agent directory
+- [ ] Allow multiline paste
 
 ## Tech Debt
 
 - [ ] Implement extensive unit testing
 - [ ] Implement extensive integration testing
 - [ ] Refactor into separate files as per .agent/prompts/rules/go_code_organisation.md
+
+## Nits
+
+- [ ] Implement retry or backoff for too many requests or other API errors. 
+- [ ] Parametrise model as well since it differs across backends
