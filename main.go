@@ -53,6 +53,7 @@ type Agent struct {
 	singleShot           bool
 	transitionToInteractive bool
 	prePrompts         []string
+	requestDelay       time.Duration // New field for request delay
 }
 
 type ToolDefinition struct {
@@ -341,6 +342,7 @@ func main() {
 	initFlag := flag.Bool("init", false, "Initialize .agent directory")
 	prePrompts := flag.String("preprompts", "", "Path to preprompts file (defaults to .agent/prompts/preprompts)")
 	resumeSession := flag.String("resume", "", "Resume a specific session by ID (YYYY-MM-DD-HH-MM-SS), or use 'list' to select interactively")
+	requestDelay := flag.Duration("request-delay", 0, "Delay between API requests (e.g., 2s, 500ms)")
 	flag.Parse()
 
 	// Validate flags
@@ -456,7 +458,7 @@ func main() {
 			fmt.Printf("Error loading preprompts: %v\n", err)
 			os.Exit(1)
 		}
-		agent = NewAgent(&client, initialGetUserMessage, tools, baseURL, rl, prompts)
+		agent = NewAgent(&client, initialGetUserMessage, tools, baseURL, rl, prompts, *requestDelay)
 		agent.singleShot = !*continueChat
 		agent.transitionToInteractive = *continueChat
 	} else {
@@ -486,7 +488,7 @@ func main() {
 			fmt.Printf("Error loading preprompts: %v\n", err)
 			os.Exit(1)
 		}
-		agent = NewAgent(&client, getUserMessage, tools, baseURL, rl, prompts)
+		agent = NewAgent(&client, getUserMessage, tools, baseURL, rl, prompts, *requestDelay)
 		agent.singleShot = false
 	}
 	ctx := context.Background()
@@ -501,7 +503,7 @@ func main() {
 }
 
 // Constructor
-func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools []ToolDefinition, baseURL string, rl *readline.Instance, prePrompts []string) *Agent {
+func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools []ToolDefinition, baseURL string, rl *readline.Instance, prePrompts []string, requestDelay time.Duration) *Agent {
 	return &Agent{
 		client:         client,
 		getUserMessage: getUserMessage,
@@ -509,6 +511,7 @@ func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools
 		baseURL:        baseURL,
 		rl:             rl,
 		prePrompts:   prePrompts,
+		requestDelay: requestDelay,
 	}
 }
 
@@ -627,19 +630,24 @@ func (a *Agent) runInference(ctx context.Context, conversation []openai.ChatComp
 	// Use all tools now that problematic grep is excluded
 	toolsToUse := openaiTools
 	
+	// Add delay if configured
+	if a.requestDelay > 0 {
+		time.Sleep(a.requestDelay)
+	}
+	
 	completion, err := a.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Model:     "gemini-2.0-flash",
+		Model:     "gemini-2.5-flash",
 		MaxTokens: openai.Int(4096),
 		Messages:  conversation,
 		Tools:     toolsToUse,
 	})
-	
+
 	// Add verbose error handling for debugging
 	if err != nil {
 		fmt.Printf("Detailed error: %+v\n", err)
 		fmt.Printf("Error type: %T\n", err)
 		fmt.Printf("Error string: %s\n", err.Error())
-		
+
 		// Try to extract more details from different error types
 		switch e := err.(type) {
 		case *openai.Error:
@@ -650,7 +658,7 @@ func (a *Agent) runInference(ctx context.Context, conversation []openai.ChatComp
 			fmt.Printf("Other error type: %T\n", e)
 		}
 	}
-	
+
 	return completion, err
 }
 
