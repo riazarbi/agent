@@ -95,8 +95,8 @@ type DeleteFileInput struct {
 }
 
 type GrepInput struct {
-	Pattern string   `json:"pattern" jsonschema_description:"The search pattern to look for (literal or regex)"`
-	Args    []string `json:"args,omitempty" jsonschema_description:"Optional ripgrep arguments (e.g. --ignore-case, --hidden)"`
+	Pattern string `json:"pattern" jsonschema_description:"The search pattern to look for (literal or regex)"`
+	Args    string `json:"args,omitempty" jsonschema_description:"Optional ripgrep arguments as space-separated string (e.g. '--ignore-case --hidden')"`
 }
 
 type GlobInput struct {
@@ -116,15 +116,15 @@ type HtmlToMarkdownInput struct {
 }
 
 type HeadInput struct {
-	Args []string `json:"args,omitempty" jsonschema_description:"Optional head arguments (e.g. -n 20, filename)"`
+	Args string `json:"args,omitempty" jsonschema_description:"Optional head arguments as space-separated string (e.g. '-n 20 filename')"`
 }
 
 type TailInput struct {
-	Args []string `json:"args,omitempty" jsonschema_description:"Optional tail arguments (e.g. -n 20, -f, filename)"`
+	Args string `json:"args,omitempty" jsonschema_description:"Optional tail arguments as space-separated string (e.g. '-n 20 -f filename')"`
 }
 
 type ClocInput struct {
-	Args []string `json:"args,omitempty" jsonschema_description:"Optional cloc arguments (e.g. --exclude-dir=.git, path)"`
+	Args string `json:"args,omitempty" jsonschema_description:"Optional cloc arguments as space-separated string (e.g. '--exclude-dir=.git path')"`
 }
 
 // Todo management types
@@ -136,7 +136,7 @@ type TodoItem struct {
 }
 
 type TodoWriteInput struct {
-	Todos []TodoItem `json:"todos" jsonschema_description:"The updated todo list"`
+	TodosJSON string `json:"todos_json" jsonschema_description:"The updated todo list as JSON string containing array of TodoItem objects"`
 }
 
 type TodoReadInput struct {
@@ -392,6 +392,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// All tools now work with Gemini via OpenAI API - arrays converted to space-separated strings
 	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition, GrepDefinition, GlobDefinition, GitDiffDefinition, WebFetchDefinition, HtmlToMarkdownDefinition, HeadDefinition, TailDefinition, ClocDefinition, TodoWriteDefinition, TodoReadDefinition}
 	
 	var agent *Agent
@@ -623,12 +624,33 @@ func (a *Agent) runInference(ctx context.Context, conversation []openai.ChatComp
 		}))
 	}
 
+	// Use all tools now that problematic grep is excluded
+	toolsToUse := openaiTools
+	
 	completion, err := a.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Model:     "claude-sonnet-4-20250514",
+		Model:     "gemini-2.0-flash",
 		MaxTokens: openai.Int(4096),
 		Messages:  conversation,
-		Tools:     openaiTools,
+		Tools:     toolsToUse,
 	})
+	
+	// Add verbose error handling for debugging
+	if err != nil {
+		fmt.Printf("Detailed error: %+v\n", err)
+		fmt.Printf("Error type: %T\n", err)
+		fmt.Printf("Error string: %s\n", err.Error())
+		
+		// Try to extract more details from different error types
+		switch e := err.(type) {
+		case *openai.Error:
+			fmt.Printf("OpenAI API Error Code: %s\n", e.Code)
+			fmt.Printf("OpenAI API Error Message: %s\n", e.Message)
+			fmt.Printf("OpenAI API Error Type: %s\n", e.Type)
+		default:
+			fmt.Printf("Other error type: %T\n", e)
+		}
+	}
+	
 	return completion, err
 }
 
@@ -1007,7 +1029,13 @@ func Grep(input json.RawMessage) (string, error) {
 	}
 
 	// Start with base command and pattern
-	args := append([]string{grepInput.Pattern}, grepInput.Args...)
+	args := []string{grepInput.Pattern}
+	
+	// Parse space-separated args string if provided
+	if grepInput.Args != "" {
+		parsedArgs := strings.Fields(grepInput.Args)
+		args = append(args, parsedArgs...)
+	}
 	
 	cmd := exec.Command("rg", args...)
 	
@@ -1197,13 +1225,22 @@ func TodoWrite(input json.RawMessage) (string, error) {
 		return "", fmt.Errorf("invalid input: %v", err)
 	}
 
+	// Parse the JSON string containing the todos array
+	var todos []TodoItem
+	if todoWriteInput.TodosJSON != "" {
+		err = json.Unmarshal([]byte(todoWriteInput.TodosJSON), &todos)
+		if err != nil {
+			return "", fmt.Errorf("invalid todos JSON: %v", err)
+		}
+	}
+
 	sessionID := getCurrentSessionID()
 	
 	// Validate and process todos
 	var processedTodos []TodoItem
 	inProgressCount := 0
 	
-	for i, todo := range todoWriteInput.Todos {
+	for i, todo := range todos {
 		// Generate ID if not provided
 		if todo.ID == "" {
 			todo.ID = generateTodoID()
@@ -1330,7 +1367,12 @@ func Head(input json.RawMessage) (string, error) {
 	}
 
 	// Start with base command
-	args := headInput.Args
+	var args []string
+	
+	// Parse space-separated args string if provided
+	if headInput.Args != "" {
+		args = strings.Fields(headInput.Args)
+	}
 	
 	cmd := exec.Command("head", args...)
 	
@@ -1361,7 +1403,12 @@ func Tail(input json.RawMessage) (string, error) {
 	}
 
 	// Start with base command
-	args := tailInput.Args
+	var args []string
+	
+	// Parse space-separated args string if provided
+	if tailInput.Args != "" {
+		args = strings.Fields(tailInput.Args)
+	}
 	
 	cmd := exec.Command("tail", args...)
 	
@@ -1392,7 +1439,12 @@ func Cloc(input json.RawMessage) (string, error) {
 	}
 
 	// Start with base command
-	args := clocInput.Args
+	var args []string
+	
+	// Parse space-separated args string if provided
+	if clocInput.Args != "" {
+		args = strings.Fields(clocInput.Args)
+	}
 	
 	cmd := exec.Command("cloc", args...)
 	
