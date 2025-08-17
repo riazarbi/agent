@@ -58,8 +58,9 @@ type ToolDefinition struct { ... }
 
 ## Notes from the last attempt
 
-The last attempt at this user story failed. These are the executors notes from that session:
+Your attempts to make a main.go.bak fail, so one has manually been created for you already. 
 
+The last attempt at this user story failed. These are the executors notes from that session:
 
 **1. Unreliable `edit_file` Tool:**
 
