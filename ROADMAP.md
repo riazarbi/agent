@@ -33,8 +33,9 @@
 - [x] Implement preprompt tooling
 - [ ] Add testing rules to prompts
 - [ ] Add manuals directory for tools and pep8 etc
-- [ ] Configurable .agent directory
+- [ ] Configurable .agent directory location
 - [ ] Allow multiline paste
+- [ ] Autocomplete for file paths
 
 ## Tech Debt
 

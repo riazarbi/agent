@@ -28,6 +28,7 @@ import (
 	"github.com/openai/openai-go/v2/option"
 	"github.com/invopop/jsonschema"
 	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
+	difflib "github.com/pmezard/go-difflib/difflib"
 )
 
 //go:embed templates/*
@@ -86,9 +87,10 @@ type ListFilesInput struct {
 }
 
 type EditFileInput struct {
-	Path   string `json:"path" jsonschema_description:"The path to the file"`
-	OldStr string `json:"old_str" jsonschema_description:"Text to search for - must match exactly and must only have one match exactly"`
-	NewStr string `json:"new_str" jsonschema_description:"Text to replace old_str with"`
+	Path               string `json:"path" jsonschema_description:"The path to the file"`
+	OldStr             string `json:"old_str" jsonschema_description:"Text to search for - must match exactly and must only have one match exactly"`
+	NewStr             string `json:"new_str" jsonschema_description:"Text to replace old_str with"`
+	ExpectedReplacements *int   `json:"expected_replacements,omitempty" jsonschema_description:"Optional: The expected number of replacements. If actual replacements differ, an error is returned."`
 }
 
 type DeleteFileInput struct {
@@ -872,51 +874,141 @@ func EditFile(input json.RawMessage) (string, error) {
 	editFileInput := EditFileInput{}
 	err := json.Unmarshal(input, &editFileInput)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("invalid input: %w", err)
 	}
 
-	if editFileInput.Path == "" || editFileInput.OldStr == editFileInput.NewStr {
-		return "", fmt.Errorf("invalid input parameters")
+	if editFileInput.Path == "" {
+		return "", fmt.Errorf("EDIT_INVALID_PATH: file path cannot be empty")
 	}
 
-	content, err := os.ReadFile(editFileInput.Path)
-	if err != nil {
-		if os.IsNotExist(err) && editFileInput.OldStr == "" {
-			return createNewFile(editFileInput.Path, editFileInput.NewStr)
+	// Read original content if file exists
+	originalContentBytes, err := os.ReadFile(editFileInput.Path)
+	var originalContent string
+	if err == nil {
+		originalContent = string(originalContentBytes)
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("EDIT_FILE_READ_ERROR: failed to read file %s: %w", editFileInput.Path, err)
+	}
+
+	// Scenario: old_str and new_str are identical
+	if editFileInput.OldStr == editFileInput.NewStr {
+		// If old_str is empty, and file doesn't exist, this is a create scenario, so it's not "identical" in effect
+		if editFileInput.OldStr == "" && os.IsNotExist(err) {
+			// This case is handled below by createNewFile, so not a no-op here.
+		} else {
+			return `{"message": "No changes applied, old_str and new_str are identical.", "actual_replacements": 0, "diff": ""}`, nil
 		}
-		return "", err
 	}
 
-	oldContent := string(content)
-	newContent := strings.ReplaceAll(oldContent, editFileInput.OldStr, editFileInput.NewStr)
-
-	if oldContent == newContent && editFileInput.OldStr != "" {
-		return "", fmt.Errorf("old_str not found in file")
+	// Handle file creation with empty old_str
+	if editFileInput.OldStr == "" {
+		if err == nil { // File already exists
+			return "", fmt.Errorf("ATTEMPT_TO_CREATE_EXISTING_FILE: File already exists, cannot create using empty old_str: %s", editFileInput.Path)
+		} else if os.IsNotExist(err) { // File does not exist, proceed to create
+			return createNewFileAtomic(editFileInput.Path, editFileInput.NewStr)
+		} else {
+			return "", fmt.Errorf("EDIT_FILE_STAT_ERROR: failed to stat file %s: %w", editFileInput.Path, err)
+		}
 	}
 
-	err = os.WriteFile(editFileInput.Path, []byte(newContent), 0644)
+	// For existing file edits
+	if os.IsNotExist(err) {
+		return "", fmt.Errorf("EDIT_FILE_NOT_FOUND: file not found: %s", editFileInput.Path)
+	}
+
+	// Perform replacements and count
+	count := strings.Count(originalContent, editFileInput.OldStr)
+	if count == 0 {
+		return "", fmt.Errorf("EDIT_NO_OCCURRENCE_FOUND: could not find the string to replace: '%s'", editFileInput.OldStr)
+	}
+
+	if editFileInput.ExpectedReplacements != nil && *editFileInput.ExpectedReplacements != count {
+		return "", fmt.Errorf("EDIT_EXPECTED_OCCURRENCE_MISMATCH: expected %d occurrences but found %d for '%s'", *editFileInput.ExpectedReplacements, count, editFileInput.OldStr)
+	}
+
+	newContent := strings.ReplaceAll(originalContent, editFileInput.OldStr, editFileInput.NewStr)
+
+	// Generate diff
+	diff, err := generateDiff(editFileInput.Path, originalContent, newContent)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("EDIT_DIFF_GENERATION_ERROR: failed to generate diff: %w", err)
 	}
 
-	return "OK", nil
+	// Atomic write
+	tmpFile, err := os.CreateTemp(filepath.Dir(editFileInput.Path), "edit-temp-*.tmp")
+	if err != nil {
+		return "", fmt.Errorf("EDIT_TEMP_FILE_CREATE_ERROR: failed to create temporary file: %w", err)
+	}
+	tmpFilePath := tmpFile.Name()
+	defer os.Remove(tmpFilePath) // Clean up temp file on exit
+
+	_, err = tmpFile.WriteString(newContent)
+	if err != nil {
+		tmpFile.Close()
+		return "", fmt.Errorf("EDIT_TEMP_FILE_WRITE_ERROR: failed to write to temporary file: %w", err)
+	}
+	tmpFile.Close()
+
+	err = os.Rename(tmpFilePath, editFileInput.Path)
+	if err != nil {
+		return "", fmt.Errorf("EDIT_FILE_RENAME_ERROR: failed to rename temporary file to target: %w", err)
+	}
+
+	return fmt.Sprintf(`{"message": "Successfully modified file: %s (%d replacement(s)).", "actual_replacements": %d, "diff": %s}`, editFileInput.Path, count, count, strconv.Quote(diff)), nil
 }
 
-func createNewFile(filePath, content string) (string, error) {
+func createNewFileAtomic(filePath, content string) (string, error) {
 	dir := path.Dir(filePath)
 	if dir != "." {
 		err := os.MkdirAll(dir, 0755)
 		if err != nil {
-			return "", fmt.Errorf("failed to create directory: %w", err)
+			return "", fmt.Errorf("EDIT_DIR_CREATE_ERROR: failed to create directory for %s: %w", filePath, err)
 		}
 	}
 
-	err := os.WriteFile(filePath, []byte(content), 0644)
+	tmpFile, err := os.CreateTemp(dir, "create-temp-*.tmp")
 	if err != nil {
-		return "", fmt.Errorf("failed to create file: %w", err)
+		return "", fmt.Errorf("EDIT_CREATE_TEMP_FILE_ERROR: failed to create temporary file for new file: %w", err)
+	}
+	tmpFilePath := tmpFile.Name()
+	defer os.Remove(tmpFilePath) // Clean up temp file on exit
+
+	_, err = tmpFile.WriteString(content)
+	if err != nil {
+		tmpFile.Close()
+		return "", fmt.Errorf("EDIT_CREATE_TEMP_WRITE_ERROR: failed to write to temporary new file: %w", err)
+	}
+	tmpFile.Close()
+
+	err = os.Rename(tmpFilePath, filePath)
+	if err != nil {
+		return "", fmt.Errorf("EDIT_CREATE_FILE_RENAME_ERROR: failed to rename temporary file to new file: %w", err)
 	}
 
-	return fmt.Sprintf("Successfully created file %s", filePath), nil
+	diff, err := generateDiff(filePath, "", content)
+	if err != nil {
+		return "", fmt.Errorf("EDIT_CREATE_DIFF_GENERATION_ERROR: failed to generate diff for new file: %w", err)
+	}
+
+	return fmt.Sprintf(`{"message": "Created new file: %s with provided content.", "actual_replacements": 0, "diff": %s}`, filePath, strconv.Quote(diff)), nil
+}
+
+// generateDiff creates a unified diff string between old and new content
+func generateDiff(filePath, oldContent, newContent string) (string, error) {
+	// Use difflib to generate a unified diff
+	diff := difflib.UnifiedDiff{
+		A:       difflib.SplitLines(oldContent),
+		B:       difflib.SplitLines(newContent),
+		FromFile: filePath,
+		ToFile:   filePath,
+		Context:  3, // Lines of context around changes
+	}
+
+	text, err := difflib.GetUnifiedDiffString(diff)
+	if err != nil {
+		return "", err
+	}
+	return text, nil
 }
 
 func DeleteFile(input json.RawMessage) (string, error) {

@@ -6,6 +6,7 @@ require (
 	github.com/JohannesKaufmann/html-to-markdown/v2 v2.3.0
 	github.com/chzyer/readline v1.5.1
 	github.com/invopop/jsonschema v0.13.0
+	github.com/pmezard/go-difflib v1.0.0
 )
 
 require (
