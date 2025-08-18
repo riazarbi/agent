@@ -4,7 +4,7 @@
 
 **NB THIS IS A MULTI_SESSION USER STORY**
 
-**This user story is mid-way. Use the git diff tool to check what has already been done, and try pick up where the last executir dropped off**
+**This user story is mid-way. Use the git diff tool to check what has already been done, and try pick up where the last executor dropped off**
 
 
 ## Requirements
