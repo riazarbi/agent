@@ -74,7 +74,3 @@
 - [ ] Verification item 2
 - [ ] Verification item 3
 
-## Next Steps
-
-After creating the story:
-1. Save to `.agent/stories/[story-name]/user-story.md`
