@@ -2,9 +2,10 @@
 
 *Reduce the size and complexity of `main.go` by extracting all tool definitions (excluding `todowrite` and `todoread`) into separate files within a unified `tools/` package. This refactoring aims to improve code organization, readability, and maintainability.*
 
-## Past Attempts
+**NB THIS IS A MULTI_SESSION USER STORY**
 
-If this user story has been attempted before, the changes made will appear in the git diff. Our policy is to only make a single commit per user story, so you can always review the git diff to review progress across attempts. 
+**This user story is mid-way. Use the git diff tool to check what has already been done, and try pick up where the last executir dropped off**
+
 
 ## Requirements
 
