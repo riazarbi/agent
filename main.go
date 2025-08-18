@@ -31,7 +31,9 @@ import (
 	difflib "github.com/pmezard/go-difflib/difflib"
 
 	"agent/tools"
-	"internal/editcorrector"
+	"agent/internal/config"
+	"agent/internal/editcorrector"
+	"agent/internal/errors"
 )
 
 //go:embed templates/*
@@ -58,6 +60,7 @@ type Agent struct {
 	transitionToInteractive bool
 	prePrompts         []string
 	requestDelay       time.Duration // New field for request delay
+	config             *config.Config
 }
 
 type ToolDefinition struct {
@@ -367,24 +370,25 @@ func main() {
 		return
 	}
 
-	// Get environment variables with defaults
-	baseURL := os.Getenv("AGENT_BASE_URL")
-	if baseURL == "" {
-		baseURL = "https://api.anthropic.com/v1/"
-	}
-	
-	apiKey := os.Getenv("AGENT_API_KEY")
-	if apiKey == "" {
-		apiKey = os.Getenv("ANTHROPIC_API_KEY")
-	}
-	if apiKey == "" {
-		fmt.Println("Error: AGENT_API_KEY or ANTHROPIC_API_KEY environment variable must be set")
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Printf("Error loading configuration: %v\n", err)
 		os.Exit(1)
 	}
+	
+	// Update config from flags
+	cfg.Agent.PromptFile = *promptFile
+	cfg.Agent.ContinueChat = *continueChat
+	cfg.Agent.Timeout = *timeout
+	cfg.Agent.InitFlag = *initFlag
+	cfg.Agent.PrePrompts = *prePrompts
+	cfg.Agent.ResumeSession = *resumeSession
+	cfg.Agent.RequestDelay = *requestDelay
 
 	client := openai.NewClient(
-		option.WithAPIKey(apiKey),
-		option.WithBaseURL(baseURL),
+		option.WithAPIKey(cfg.API.Key),
+		option.WithBaseURL(cfg.API.BaseURL),
 	)
 
 	// Check for .agent directory and offer to create if missing
@@ -394,7 +398,7 @@ func main() {
 	}
 
 	// Initialize session management
-	_, err := initializeSession(*resumeSession)
+	_, err = initializeSession(cfg.Agent.ResumeSession)
 	if err != nil {
 		fmt.Printf("Error initializing session: %v\n", err)
 		os.Exit(1)
@@ -459,12 +463,12 @@ func main() {
 			return promptContent, true
 		}
 		
-		prompts, err := getPrePrompts(*prePrompts)
+		prompts, err := getPrePrompts(cfg.Agent.PrePrompts)
 		if err != nil {
 			fmt.Printf("Error loading preprompts: %v\n", err)
 			os.Exit(1)
 		}
-		agent = NewAgent(&client, initialGetUserMessage, tools, baseURL, rl, prompts, *requestDelay)
+		agent = NewAgent(&client, initialGetUserMessage, tools, cfg.API.BaseURL, rl, prompts, cfg.Agent.RequestDelay, cfg)
 		agent.singleShot = !*continueChat
 		agent.transitionToInteractive = *continueChat
 	} else {
@@ -489,12 +493,12 @@ func main() {
 			return line, true
 		}
 		
-		prompts, err := getPrePrompts(*prePrompts)
+		prompts, err := getPrePrompts(cfg.Agent.PrePrompts)
 		if err != nil {
 			fmt.Printf("Error loading preprompts: %v\n", err)
 			os.Exit(1)
 		}
-		agent = NewAgent(&client, getUserMessage, tools, baseURL, rl, prompts, *requestDelay)
+		agent = NewAgent(&client, getUserMessage, tools, cfg.API.BaseURL, rl, prompts, cfg.Agent.RequestDelay, cfg)
 		agent.singleShot = false
 	}
 	ctx := context.Background()
@@ -509,7 +513,7 @@ func main() {
 }
 
 // Constructor
-func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools []ToolDefinition, baseURL string, rl *readline.Instance, prePrompts []string, requestDelay time.Duration) *Agent {
+func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools []ToolDefinition, baseURL string, rl *readline.Instance, prePrompts []string, requestDelay time.Duration, cfg *config.Config) *Agent {
 	return &Agent{
 		client:         client,
 		getUserMessage: getUserMessage,
@@ -518,6 +522,7 @@ func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools
 		rl:             rl,
 		prePrompts:   prePrompts,
 		requestDelay: requestDelay,
+		config:       cfg,
 	}
 }
 
@@ -680,14 +685,11 @@ func (a *Agent) logConversation(conversation []openai.ChatCompletionMessageParam
 		}
 	} else {
 		// Fallback to global log for backward compatibility
-		logFile = os.Getenv("LOG_FILE")
-		if logFile == "" {
-			logFile = ".agent/agent.log"
-			// Ensure .agent directory exists
-			if err := os.MkdirAll(".agent", 0755); err != nil {
-				fmt.Printf("Warning: Failed to create .agent directory: %v\n", err)
-				return
-			}
+		logFile = a.config.Logging.File
+		// Ensure .agent directory exists
+		if err := os.MkdirAll(".agent", 0755); err != nil {
+			fmt.Printf("Warning: Failed to create .agent directory: %v\n", err)
+			return
 		}
 	}
 	
@@ -834,7 +836,7 @@ func EditFile(input json.RawMessage) (string, error) {
 	}
 
 	if editFileInput.Path == "" {
-		return "", fmt.Errorf("EDIT_INVALID_PATH: file path cannot be empty")
+		return "", errors.NewEditError(errors.EditErrorInvalidPath, editFileInput.Path, "file path cannot be empty", nil)
 	}
 
 	// Programmatic unescaping (R1)
@@ -847,7 +849,7 @@ func EditFile(input json.RawMessage) (string, error) {
 	if err == nil {
 		originalContent = string(originalContentBytes)
 	} else if !os.IsNotExist(err) {
-		return "", fmt.Errorf("EDIT_FILE_READ_ERROR: failed to read file %s: %w", editFileInput.Path, err)
+		return "", errors.NewEditError(errors.EditErrorFileReadError, editFileInput.Path, "failed to read file", err)
 	}
 
 	// Scenario: old_str and new_str are identical (after correction)
@@ -863,7 +865,7 @@ func EditFile(input json.RawMessage) (string, error) {
 	// Handle file creation with empty old_str (after correction)
 	if correctedOldStr == "" {
 		if err == nil { // File already exists
-			return "", fmt.Errorf("ATTEMPT_TO_CREATE_EXISTING_FILE: File already exists, cannot create using empty old_str: %s", editFileInput.Path)
+			return "", errors.NewEditError(errors.EditErrorCreateExistingFile, editFileInput.Path, "file already exists, cannot create using empty old_str", nil)
 		} else if os.IsNotExist(err) { // File does not exist, proceed to create
 			return createNewFileAtomic(editFileInput.Path, correctedNewStr)
 		} else {
