@@ -29,6 +29,8 @@ import (
 	"github.com/invopop/jsonschema"
 	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 	difflib "github.com/pmezard/go-difflib/difflib"
+
+	"agent/tools"
 )
 
 //go:embed templates/*
@@ -82,9 +84,7 @@ type ReadFileInput struct {
 	Path string `json:"path" jsonschema_description:"The relative path of a file in the working directory."`
 }
 
-type ListFilesInput struct {
-	Path string `json:"path,omitempty" jsonschema_description:"Optional relative path to list files from. Defaults to current directory if not provided."`
-}
+
 
 type EditFileInput struct {
 	Path               string `json:"path" jsonschema_description:"The path to the file"`
@@ -157,7 +157,8 @@ type CacheResult struct {
 var WebFetchInputSchema = GenerateSchema[WebFetchInput]()
 var HtmlToMarkdownInputSchema = GenerateSchema[HtmlToMarkdownInput]()
 var ReadFileInputSchema = GenerateSchema[ReadFileInput]()
-var ListFilesInputSchema = GenerateSchema[ListFilesInput]()
+var ListFilesInputSchema = GenerateSchema[tools.ListFilesInput]()
+
 var EditFileInputSchema = GenerateSchema[EditFileInput]()
 var DeleteFileInputSchema = GenerateSchema[DeleteFileInput]()
 var GrepInputSchema = GenerateSchema[GrepInput]()
@@ -181,8 +182,10 @@ var ListFilesDefinition = ToolDefinition{
 	Name:        "list_files",
 	Description: "List files and directories at a given path. If no path is provided, lists files in the current directory.",
 	InputSchema: ListFilesInputSchema,
-	Function:    ListFiles,
+	Function:    tools.ListFiles,
 }
+
+
 
 var EditFileDefinition = ToolDefinition{
 	Name: "edit_file",
@@ -820,55 +823,7 @@ func ReadFile(input json.RawMessage) (string, error) {
 	return string(content), nil
 }
 
-func ListFiles(input json.RawMessage) (string, error) {
-	listFilesInput := ListFilesInput{}
-	err := json.Unmarshal(input, &listFilesInput)
-	if err != nil {
-		panic(err)
-	}
 
-	dir := "."
-	if listFilesInput.Path != "" {
-		dir = listFilesInput.Path
-	}
-
-	var files []string
-	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		relPath, err := filepath.Rel(dir, path)
-		if err != nil {
-			return err
-		}
-
-		// Skip .git and .agent directories
-		if info.IsDir() && (relPath == ".git" || strings.HasPrefix(relPath, ".git/") || relPath == ".agent/prompts" || strings.HasPrefix(relPath, ".agent/prompts/")) {
-			return filepath.SkipDir
-		}
-
-		if relPath != "." {
-			if info.IsDir() {
-				files = append(files, relPath+"/")
-			} else {
-				files = append(files, relPath)
-			}
-		}
-		return nil
-	})
-
-	if err != nil {
-		return "", err
-	}
-
-	result, err := json.Marshal(files)
-	if err != nil {
-		return "", err
-	}
-
-	return string(result), nil
-}
 
 func EditFile(input json.RawMessage) (string, error) {
 	editFileInput := EditFileInput{}
