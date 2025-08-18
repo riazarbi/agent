@@ -31,6 +31,7 @@ import (
 	difflib "github.com/pmezard/go-difflib/difflib"
 
 	"agent/tools"
+	"internal/editcorrector"
 )
 
 //go:embed templates/*
@@ -836,6 +837,10 @@ func EditFile(input json.RawMessage) (string, error) {
 		return "", fmt.Errorf("EDIT_INVALID_PATH: file path cannot be empty")
 	}
 
+	// Programmatic unescaping (R1)
+	correctedOldStr := editcorrector.UnescapeGoString(editFileInput.OldStr)
+	correctedNewStr := editcorrector.UnescapeGoString(editFileInput.NewStr)
+
 	// Read original content if file exists
 	originalContentBytes, err := os.ReadFile(editFileInput.Path)
 	var originalContent string
@@ -845,22 +850,22 @@ func EditFile(input json.RawMessage) (string, error) {
 		return "", fmt.Errorf("EDIT_FILE_READ_ERROR: failed to read file %s: %w", editFileInput.Path, err)
 	}
 
-	// Scenario: old_str and new_str are identical
-	if editFileInput.OldStr == editFileInput.NewStr {
+	// Scenario: old_str and new_str are identical (after correction)
+	if correctedOldStr == correctedNewStr {
 		// If old_str is empty, and file doesn't exist, this is a create scenario, so it's not "identical" in effect
-		if editFileInput.OldStr == "" && os.IsNotExist(err) {
+		if correctedOldStr == "" && os.IsNotExist(err) {
 			// This case is handled below by createNewFile, so not a no-op here.
 		} else {
 			return `{"message": "No changes applied, old_str and new_str are identical.", "actual_replacements": 0, "diff": ""}`, nil
 		}
 	}
 
-	// Handle file creation with empty old_str
-	if editFileInput.OldStr == "" {
+	// Handle file creation with empty old_str (after correction)
+	if correctedOldStr == "" {
 		if err == nil { // File already exists
 			return "", fmt.Errorf("ATTEMPT_TO_CREATE_EXISTING_FILE: File already exists, cannot create using empty old_str: %s", editFileInput.Path)
 		} else if os.IsNotExist(err) { // File does not exist, proceed to create
-			return createNewFileAtomic(editFileInput.Path, editFileInput.NewStr)
+			return createNewFileAtomic(editFileInput.Path, correctedNewStr)
 		} else {
 			return "", fmt.Errorf("EDIT_FILE_STAT_ERROR: failed to stat file %s: %w", editFileInput.Path, err)
 		}
@@ -871,17 +876,17 @@ func EditFile(input json.RawMessage) (string, error) {
 		return "", fmt.Errorf("EDIT_FILE_NOT_FOUND: file not found: %s", editFileInput.Path)
 	}
 
-	// Perform replacements and count
-	count := strings.Count(originalContent, editFileInput.OldStr)
+	// Perform replacements and count using corrected old_str
+	count := strings.Count(originalContent, correctedOldStr)
 	if count == 0 {
-		return "", fmt.Errorf("EDIT_NO_OCCURRENCE_FOUND: could not find the string to replace: '%s'", editFileInput.OldStr)
+		return "", fmt.Errorf("EDIT_NO_OCCURRENCE_FOUND: could not find the string to replace: '%s' (attempted unescaped: '%s')", editFileInput.OldStr, correctedOldStr)
 	}
 
 	if editFileInput.ExpectedReplacements != nil && *editFileInput.ExpectedReplacements != count {
-		return "", fmt.Errorf("EDIT_EXPECTED_OCCURRENCE_MISMATCH: expected %d occurrences but found %d for '%s'", *editFileInput.ExpectedReplacements, count, editFileInput.OldStr)
+		return "", fmt.Errorf("EDIT_EXPECTED_OCCURRENCE_MISMATCH: expected %d occurrences but found %d for '%s' (attempted unescaped: '%s')", *editFileInput.ExpectedReplacements, count, editFileInput.OldStr, correctedOldStr)
 	}
 
-	newContent := strings.ReplaceAll(originalContent, editFileInput.OldStr, editFileInput.NewStr)
+	newContent := strings.ReplaceAll(originalContent, correctedOldStr, correctedNewStr)
 
 	// Generate diff
 	diff, err := generateDiff(editFileInput.Path, originalContent, newContent)
