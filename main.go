@@ -34,6 +34,7 @@ import (
 	"agent/internal/config"
 	"agent/internal/editcorrector"
 	"agent/internal/errors"
+	internaltools "agent/internal/tools"
 )
 
 //go:embed templates/*
@@ -53,7 +54,7 @@ var (
 type Agent struct {
 	client                *openai.Client
 	getUserMessage       func() (string, bool)
-	tools                []ToolDefinition
+	toolRegistry         *internaltools.Registry
 	baseURL              string
 	rl                   *readline.Instance
 	singleShot           bool
@@ -404,8 +405,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// All tools now work with Gemini via OpenAI API - arrays converted to space-separated strings
-	tools := []ToolDefinition{ReadFileDefinition, ListFilesDefinition, EditFileDefinition, DeleteFileDefinition, GrepDefinition, GlobDefinition, GitDiffDefinition, WebFetchDefinition, HtmlToMarkdownDefinition, HeadDefinition, TailDefinition, ClocDefinition, TodoWriteDefinition, TodoReadDefinition}
+	// All tools now work with Gemini via OpenAI API and are managed by the tool registry
 	
 	var agent *Agent
 	if *promptFile != "" {
@@ -468,7 +468,7 @@ func main() {
 			fmt.Printf("Error loading preprompts: %v\n", err)
 			os.Exit(1)
 		}
-		agent = NewAgent(&client, initialGetUserMessage, tools, cfg.API.BaseURL, rl, prompts, cfg.Agent.RequestDelay, cfg)
+		agent = NewAgent(&client, initialGetUserMessage, cfg.API.BaseURL, rl, prompts, cfg.Agent.RequestDelay, cfg)
 		agent.singleShot = !*continueChat
 		agent.transitionToInteractive = *continueChat
 	} else {
@@ -498,7 +498,7 @@ func main() {
 			fmt.Printf("Error loading preprompts: %v\n", err)
 			os.Exit(1)
 		}
-		agent = NewAgent(&client, getUserMessage, tools, cfg.API.BaseURL, rl, prompts, cfg.Agent.RequestDelay, cfg)
+		agent = NewAgent(&client, getUserMessage, cfg.API.BaseURL, rl, prompts, cfg.Agent.RequestDelay, cfg)
 		agent.singleShot = false
 	}
 	ctx := context.Background()
@@ -513,11 +513,14 @@ func main() {
 }
 
 // Constructor
-func NewAgent(client *openai.Client, getUserMessage func() (string, bool), tools []ToolDefinition, baseURL string, rl *readline.Instance, prePrompts []string, requestDelay time.Duration, cfg *config.Config) *Agent {
+func NewAgent(client *openai.Client, getUserMessage func() (string, bool), baseURL string, rl *readline.Instance, prePrompts []string, requestDelay time.Duration, cfg *config.Config) *Agent {
+	// Initialize tool registry with all available tools (no session dependencies for now)
+	registry := internaltools.NewRegistry(nil)
+	
 	return &Agent{
 		client:         client,
 		getUserMessage: getUserMessage,
-		tools:          tools,
+		toolRegistry:   registry,
 		baseURL:        baseURL,
 		rl:             rl,
 		prePrompts:   prePrompts,
@@ -607,21 +610,8 @@ func (a *Agent) Run(ctx context.Context) error {
 }
 
 func (a *Agent) executeTool(id, name string, input json.RawMessage) openai.ChatCompletionMessageParamUnion {
-	var toolDef ToolDefinition
-	var found bool
-	for _, tool := range a.tools {
-		if tool.Name == name {
-			toolDef = tool
-			found = true
-			break
-		}
-	}
-	if !found {
-		return openai.ToolMessage("tool not found", id)
-	}
-
 	fmt.Printf("\u001b[92mTool\u001b[0m: %s(%s)\n", name, input)
-	response, err := toolDef.Function(input)
+	response, err := a.toolRegistry.Execute(name, input)
 	if err != nil {
 		return openai.ToolMessage(err.Error(), id)
 	}
@@ -630,7 +620,7 @@ func (a *Agent) executeTool(id, name string, input json.RawMessage) openai.ChatC
 
 func (a *Agent) runInference(ctx context.Context, conversation []openai.ChatCompletionMessageParamUnion) (*openai.ChatCompletion, error) {
 	openaiTools := []openai.ChatCompletionToolUnionParam{}
-	for _, tool := range a.tools {
+	for _, tool := range a.toolRegistry.List() {
 		openaiTools = append(openaiTools, openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
 			Name:        tool.Name,
 			Description: openai.String(tool.Description),

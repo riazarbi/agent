@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/openai/openai-go/v2"
+
+	"agent/internal/session"
 )
 
 // Tool represents a single tool that can be executed by the agent
@@ -20,23 +22,33 @@ type Registry struct {
 	tools map[string]Tool
 }
 
+// RegistryConfig provides dependencies for tools that need them
+type RegistryConfig struct {
+	SessionManager   *session.Manager
+	CurrentSessionID string
+}
+
 // NewRegistry creates a new tool registry with default tools
-func NewRegistry() *Registry {
+func NewRegistry(config *RegistryConfig) *Registry {
 	r := &Registry{
 		tools: make(map[string]Tool),
 	}
 
 	// Register default tools by category
-	r.registerDefaultTools()
+	r.registerDefaultTools(config)
 	return r
 }
 
 // registerDefaultTools registers all default tools
-func (r *Registry) registerDefaultTools() {
+func (r *Registry) registerDefaultTools(config *RegistryConfig) {
 	r.Register(NewFileTools()...)
 	r.Register(NewWebTools()...)
 	r.Register(NewGitTools()...)
-	r.Register(NewTodoTools()...)
+	
+	// Only register todo tools if session dependencies are provided
+	if config != nil && config.SessionManager != nil && config.CurrentSessionID != "" {
+		r.Register(NewTodoTools(config.SessionManager, config.CurrentSessionID)...)
+	}
 }
 
 // Register adds one or more tools to the registry

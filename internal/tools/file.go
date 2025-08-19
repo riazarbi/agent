@@ -1,9 +1,11 @@
 package tools
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -46,6 +48,24 @@ If the file specified with path doesn't exist, it will be created.`,
 			InputSchema: GenerateSchema[DeleteFileInput](),
 			Handler:     fileOps.DeleteFile,
 		},
+		{
+			Name:        "head",
+			Description: "Show first N lines of a file (default 10 lines). Useful for quickly inspecting the beginning of files without reading the entire content.",
+			InputSchema: GenerateSchema[HeadInput](),
+			Handler:     fileOps.Head,
+		},
+		{
+			Name:        "tail",
+			Description: "Show last N lines of a file (default 10 lines). Useful for checking recent content or log file endings.",
+			InputSchema: GenerateSchema[TailInput](),
+			Handler:     fileOps.Tail,
+		},
+		{
+			Name:        "cloc",
+			Description: "Count lines of code with language breakdown and statistics. Useful for analyzing codebase size and composition.",
+			InputSchema: GenerateSchema[ClocInput](),
+			Handler:     fileOps.Cloc,
+		},
 	}
 }
 
@@ -63,6 +83,18 @@ type EditFileInput struct {
 
 type DeleteFileInput struct {
 	Path string `json:"path" jsonschema_description:"The relative path of the file to delete."`
+}
+
+type HeadInput struct {
+	Args string `json:"args,omitempty" jsonschema_description:"Optional head arguments as space-separated string (e.g. '-n 20 filename')"`
+}
+
+type TailInput struct {
+	Args string `json:"args,omitempty" jsonschema_description:"Optional tail arguments as space-separated string (e.g. '-n 20 -f filename')"`
+}
+
+type ClocInput struct {
+	Args string `json:"args,omitempty" jsonschema_description:"Optional cloc arguments as space-separated string (e.g. '--exclude-dir=.git path')"`
 }
 
 
@@ -273,11 +305,16 @@ func GenerateSchema[T any]() openai.FunctionParameters {
 		required = append(required, req)
 	}
 
-	return openai.FunctionParameters{
-		Type:       "object",
-		Properties: properties,
-		Required:   required,
+	result := openai.FunctionParameters{
+		"type":       "object",
+		"properties": properties,
 	}
+	
+	if len(required) > 0 {
+		result["required"] = required
+	}
+	
+	return result
 }
 
 // convertSchemaProperty converts a jsonschema property to the format expected by OpenAI
@@ -307,4 +344,112 @@ func convertSchemaProperty(prop *jsonschema.Schema) map[string]any {
 	}
 
 	return result
+}
+
+func (f *FileOperations) Head(input json.RawMessage) (string, error) {
+	headInput := HeadInput{}
+	err := json.Unmarshal(input, &headInput)
+	if err != nil {
+		return "", err
+	}
+
+	// Start with base command
+	var args []string
+	
+	// Parse space-separated args string if provided
+	if headInput.Args != "" {
+		args = strings.Fields(headInput.Args)
+	}
+	
+	cmd := exec.Command("head", args...)
+	
+	// Capture both stdout and stderr
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	
+	err = cmd.Run()
+	
+	// Check for errors
+	if err != nil {
+		// If there's stderr output, return that as the error
+		if stderr.Len() > 0 {
+			return "", fmt.Errorf(stderr.String())
+		}
+		return "", err
+	}
+
+	return stdout.String(), nil
+}
+
+func (f *FileOperations) Tail(input json.RawMessage) (string, error) {
+	tailInput := TailInput{}
+	err := json.Unmarshal(input, &tailInput)
+	if err != nil {
+		return "", err
+	}
+
+	// Start with base command
+	var args []string
+	
+	// Parse space-separated args string if provided
+	if tailInput.Args != "" {
+		args = strings.Fields(tailInput.Args)
+	}
+	
+	cmd := exec.Command("tail", args...)
+	
+	// Capture both stdout and stderr
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	
+	err = cmd.Run()
+	
+	// Check for errors
+	if err != nil {
+		// If there's stderr output, return that as the error
+		if stderr.Len() > 0 {
+			return "", fmt.Errorf(stderr.String())
+		}
+		return "", err
+	}
+
+	return stdout.String(), nil
+}
+
+func (f *FileOperations) Cloc(input json.RawMessage) (string, error) {
+	clocInput := ClocInput{}
+	err := json.Unmarshal(input, &clocInput)
+	if err != nil {
+		return "", err
+	}
+
+	// Start with base command
+	var args []string
+	
+	// Parse space-separated args string if provided
+	if clocInput.Args != "" {
+		args = strings.Fields(clocInput.Args)
+	}
+	
+	cmd := exec.Command("cloc", args...)
+	
+	// Capture both stdout and stderr
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	
+	err = cmd.Run()
+	
+	// Check for errors
+	if err != nil {
+		// If there's stderr output, return that as the error
+		if stderr.Len() > 0 {
+			return "", fmt.Errorf(stderr.String())
+		}
+		return "", err
+	}
+
+	return stdout.String(), nil
 }
