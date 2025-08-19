@@ -48,11 +48,11 @@ func TestLoad(t *testing.T) {
 		{
 			name: "custom configuration from environment variables",
 			envVars: map[string]string{
-				"AGENT_API_KEY":       "custom-api-key",
-				"AGENT_BASE_URL":      "https://custom.api.com/",
-				"AGENT_SESSION_DIR":   "/custom/sessions",
-				"AGENT_PREPROMPTS":    "/custom/preprompts",
-				"LOG_FILE":            "/custom/agent.log",
+				"AGENT_API_KEY":     "custom-api-key",
+				"AGENT_BASE_URL":    "https://custom.api.com/",
+				"AGENT_SESSION_DIR": "/custom/sessions",
+				"AGENT_PREPROMPTS":  "/custom/preprompts",
+				"LOG_FILE":          "/custom/agent.log",
 			},
 			expectError: false,
 			expected: &Config{
@@ -79,7 +79,7 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
-			name: "missing API key should return error",
+			name:    "missing API key should return error",
 			envVars: map[string]string{
 				// No API key set
 			},
@@ -98,6 +98,12 @@ func TestLoad(t *testing.T) {
 			}
 
 			cfg, err := Load()
+
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+
 			require.NoError(t, err)
 			assert.Equal(t, tt.expected, cfg)
 		})
@@ -126,13 +132,6 @@ func TestGetEnv(t *testing.T) {
 			envValue:     "env-value",
 			expected:     "env-value",
 		},
-		{
-			name:         "returns empty string when env var is empty",
-			key:          "TEST_VAR",
-			defaultValue: "default",
-			envValue:     "",
-			expected:     "default",
-		},
 	}
 
 	for _, tt := range tests {
@@ -151,117 +150,15 @@ func TestGetEnv(t *testing.T) {
 	}
 }
 
-func TestParseDuration(t *testing.T) {
-	tests := []struct {
-		name         string
-		key          string
-		defaultValue time.Duration
-		envValue     string
-		expected     time.Duration
-	}{
-		{
-			name:         "returns default when env var not set",
-			key:          "TEST_DURATION",
-			defaultValue: 30 * time.Second,
-			envValue:     "",
-			expected:     30 * time.Second,
-		},
-		{
-			name:         "parses valid duration",
-			key:          "TEST_DURATION",
-			defaultValue: 30 * time.Second,
-			envValue:     "1m30s",
-			expected:     90 * time.Second,
-		},
-		{
-			name:         "returns default for invalid duration",
-			key:          "TEST_DURATION",
-			defaultValue: 30 * time.Second,
-			envValue:     "invalid",
-			expected:     30 * time.Second,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Clear environment variable
-			os.Unsetenv(tt.key)
-
-			// Set environment variable if provided
-			if tt.envValue != "" {
-				t.Setenv(tt.key, tt.envValue)
-			}
-
-			result := parseDuration(tt.key, tt.defaultValue)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
-func TestParseBool(t *testing.T) {
-	tests := []struct {
-		name         string
-		key          string
-		defaultValue bool
-		envValue     string
-		expected     bool
-	}{
-		{
-			name:         "returns default when env var not set",
-			key:          "TEST_BOOL",
-			defaultValue: true,
-			envValue:     "",
-			expected:     true,
-		},
-		{
-			name:         "parses true",
-			key:          "TEST_BOOL",
-			defaultValue: false,
-			envValue:     "true",
-			expected:     true,
-		},
-		{
-			name:         "parses false",
-			key:          "TEST_BOOL",
-			defaultValue: true,
-			envValue:     "false",
-			expected:     false,
-		},
-		{
-			name:         "returns default for invalid bool",
-			key:          "TEST_BOOL",
-			defaultValue: true,
-			envValue:     "invalid",
-			expected:     true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Clear environment variable
-			os.Unsetenv(tt.key)
-
-			// Set environment variable if provided
-			if tt.envValue != "" {
-				t.Setenv(tt.key, tt.envValue)
-			}
-
-			result := parseBool(tt.key, tt.defaultValue)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 // clearEnvVars clears all agent-related environment variables
 func clearEnvVars() {
 	envVars := []string{
 		"AGENT_API_KEY",
-		"AGENT_BASE_URL", 
-		"AGENT_TIMEOUT",
-		"AGENT_REQUEST_DELAY",
+		"ANTHROPIC_API_KEY",
+		"AGENT_BASE_URL",
 		"AGENT_SESSION_DIR",
-		"AGENT_LOGGING_DIR",
-		"AGENT_LOGGING_ENABLED",
+		"AGENT_PREPROMPTS",
+		"LOG_FILE",
 	}
 
 	for _, envVar := range envVars {

@@ -1,0 +1,90 @@
+version: '3'
+
+vars:
+  BINARY_NAME: agent
+  BUILD_DIR: bin
+  COVERAGE_DIR: coverage
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the agent binary
+    cmds:
+      - mkdir -p {{.BUILD_DIR}}
+      - go build -o {{.BUILD_DIR}}/{{.BINARY_NAME}} ./cmd/agent
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+    generates:
+      - "{{.BUILD_DIR}}/{{.BINARY_NAME}}"
+
+  clean:
+    desc: Clean build artifacts and coverage reports
+    cmds:
+      - rm -rf {{.BUILD_DIR}}
+      - rm -rf {{.COVERAGE_DIR}}
+      - rm -f coverage.out coverage.html
+
+  test:
+    desc: Run all tests with race detection
+    cmds:
+      - go test -short -race ./...
+
+  test-verbose:
+    desc: Run all tests with verbose output
+    cmds:
+      - go test -v -race ./...
+
+  test-coverage:
+    desc: Generate test coverage report
+    cmds:
+      - mkdir -p {{.COVERAGE_DIR}}
+      - go test -coverprofile={{.COVERAGE_DIR}}/coverage.out ./...
+      - go tool cover -html={{.COVERAGE_DIR}}/coverage.out -o {{.COVERAGE_DIR}}/coverage.html
+      - echo "Coverage report generated at {{.COVERAGE_DIR}}/coverage.html"
+
+  test-integration:
+    desc: Run integration tests (when implemented)
+    cmds:
+      - go test -tags integration ./test/integration/...
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run
+
+  fmt:
+    desc: Format Go code
+    cmds:
+      - gofmt -s -w .
+      - goimports -w .
+
+  install-deps:
+    desc: Install development dependencies
+    cmds:
+      - go mod download
+      - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - go install golang.org/x/tools/cmd/goimports@latest
+
+  dev:
+    desc: Run the agent in development mode
+    deps: [build]
+    cmds:
+      - ./{{.BUILD_DIR}}/{{.BINARY_NAME}}
+
+  check:
+    desc: Run all quality checks (tests, linting, formatting)
+    deps: [test, lint, fmt]
+    cmds:
+      - echo "All quality checks passed!"
+
+  ci:
+    desc: Run full CI pipeline locally
+    deps: [clean, install-deps, check, test-coverage, build]
+    cmds:
+      - echo "CI pipeline completed successfully!"

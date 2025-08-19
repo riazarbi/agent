@@ -27,7 +27,7 @@ func TestUnescapeGoString(t *testing.T) {
 		},
 		{
 			name:        "basic double quote",
-			input:       "He said,\\"Hello\\"",
+			input:       "He said,\\\"Hello\\\"",
 			expected:    "He said,\"Hello\"",
 			description: "Should unescape a double quote character.",
 		},
@@ -39,7 +39,7 @@ func TestUnescapeGoString(t *testing.T) {
 		},
 		{
 			name:        "mixed escapes",
-			input:       "Line1\\nLine2\\tLine3\\"quoted\\"",
+			input:       "Line1\\nLine2\\tLine3\\\"quoted\\\"",
 			expected:    "Line1\nLine2\tLine3\"quoted\"",
 			description: "Should handle multiple types of escapes in one string.",
 		},

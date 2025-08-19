@@ -23,18 +23,18 @@ import (
 	"sync"
 	"time"
 
+	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 	"github.com/chzyer/readline"
+	"github.com/invopop/jsonschema"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
-	"github.com/invopop/jsonschema"
-	htmltomarkdown "github.com/JohannesKaufmann/html-to-markdown/v2"
 	difflib "github.com/pmezard/go-difflib/difflib"
 
-	"agent/tools"
 	"agent/internal/config"
 	"agent/internal/editcorrector"
 	"agent/internal/errors"
 	internaltools "agent/internal/tools"
+	"agent/tools"
 )
 
 //go:embed templates/*
@@ -42,42 +42,42 @@ var templateFS embed.FS
 
 // Session state for todo management and logging
 var (
-	sessionTodos = make(map[string][]TodoItem)
-	sessionMutex sync.RWMutex
-	sessionIDCounter = 1
-	currentSessionID string // Set at startup: "2024-12-19-14-30-45"
-	currentSessionDir string // Derived: ".agent/sessions/[currentSessionID]/"
+	sessionTodos          = make(map[string][]TodoItem)
+	sessionMutex          sync.RWMutex
+	sessionIDCounter      = 1
+	currentSessionID      string          // Set at startup: "2024-12-19-14-30-45"
+	currentSessionDir     string          // Derived: ".agent/sessions/[currentSessionID]/"
 	currentSessionManager *SessionManager // Global reference to current session manager
 )
 
 // Core types
 type Agent struct {
-	client                *openai.Client
-	getUserMessage       func() (string, bool)
-	toolRegistry         *internaltools.Registry
-	baseURL              string
-	rl                   *readline.Instance
-	singleShot           bool
+	client                  *openai.Client
+	getUserMessage          func() (string, bool)
+	toolRegistry            *internaltools.Registry
+	baseURL                 string
+	rl                      *readline.Instance
+	singleShot              bool
 	transitionToInteractive bool
-	prePrompts         []string
-	requestDelay       time.Duration // New field for request delay
-	config             *config.Config
+	prePrompts              []string
+	requestDelay            time.Duration // New field for request delay
+	config                  *config.Config
 }
 
 type ToolDefinition struct {
-	Name        string                       `json:"name"`
-	Description string                       `json:"description"`
-	InputSchema openai.FunctionParameters   `json:"input_schema"`
+	Name        string                    `json:"name"`
+	Description string                    `json:"description"`
+	InputSchema openai.FunctionParameters `json:"input_schema"`
 	Function    func(input json.RawMessage) (string, error)
 }
 
 // Session management types
 type SessionManager struct {
-	SessionID    string                                       `json:"session_id"`    // Format: "2024-12-19-14-30-45"  
-	SessionDir   string                                       `json:"session_dir"`   // Path: ".agent/sessions/[timestamp]/"
-	LogFile      *os.File                                     `json:"-"`             // File handle for agent.log
-	TodosPath    string                                       `json:"todos_path"`    // Path to todos.json
-	Conversation []openai.ChatCompletionMessageParamUnion     `json:"conversation"`  // Loaded from previous session or empty
+	SessionID    string                                   `json:"session_id"`   // Format: "2024-12-19-14-30-45"
+	SessionDir   string                                   `json:"session_dir"`  // Path: ".agent/sessions/[timestamp]/"
+	LogFile      *os.File                                 `json:"-"`            // File handle for agent.log
+	TodosPath    string                                   `json:"todos_path"`   // Path to todos.json
+	Conversation []openai.ChatCompletionMessageParamUnion `json:"conversation"` // Loaded from previous session or empty
 }
 
 type SessionTodos struct {
@@ -89,12 +89,10 @@ type ReadFileInput struct {
 	Path string `json:"path" jsonschema_description:"The relative path of a file in the working directory."`
 }
 
-
-
 type EditFileInput struct {
-	Path               string `json:"path" jsonschema_description:"The path to the file"`
-	OldStr             string `json:"old_str" jsonschema_description:"Text to search for - must match exactly and must only have one match exactly"`
-	NewStr             string `json:"new_str" jsonschema_description:"Text to replace old_str with"`
+	Path                 string `json:"path" jsonschema_description:"The path to the file"`
+	OldStr               string `json:"old_str" jsonschema_description:"Text to search for - must match exactly and must only have one match exactly"`
+	NewStr               string `json:"new_str" jsonschema_description:"Text to replace old_str with"`
 	ExpectedReplacements *int   `json:"expected_replacements,omitempty" jsonschema_description:"Optional: The expected number of replacements. If actual replacements differ, an error is returned."`
 }
 
@@ -190,8 +188,6 @@ var ListFilesDefinition = ToolDefinition{
 	Function:    tools.ListFiles,
 }
 
-
-
 var EditFileDefinition = ToolDefinition{
 	Name: "edit_file",
 	Description: `Make edits to a text file.
@@ -234,7 +230,7 @@ var GitDiffDefinition = ToolDefinition{
 
 // Supported content types for WebFetch
 var allowedContentTypes = map[string]string{
-	"text/plain":             ".txt",
+	"text/plain":            ".txt",
 	"text/html":             ".html",
 	"text/xml":              ".xml",
 	"application/json":      ".json",
@@ -255,7 +251,7 @@ func generateFilename(inputURL string) (string, error) {
 	// Clean the path
 	path = strings.Trim(path, "/")
 	path = strings.ReplaceAll(path, "/", "_")
-	
+
 	// Generate hash of full URL
 	hasher := sha256.New()
 	hasher.Write([]byte(inputURL))
@@ -279,17 +275,17 @@ func isAllowedContentType(contentType string) (string, bool) {
 	// Extract base content type
 	base := strings.Split(contentType, ";")[0]
 	base = strings.TrimSpace(base)
-	
+
 	// Check specific allowed types first
 	if ext, ok := allowedContentTypes[base]; ok {
 		return ext, true
 	}
-	
+
 	// Check for other text/* types (default to .txt)
 	if strings.HasPrefix(base, "text/") {
 		return ".txt", true
 	}
-	
+
 	return "", false
 }
 
@@ -377,7 +373,7 @@ func main() {
 		fmt.Printf("Error loading configuration: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	// Update config from flags
 	cfg.Agent.PromptFile = *promptFile
 	cfg.Agent.ContinueChat = *continueChat
@@ -406,11 +402,11 @@ func main() {
 	}
 
 	// All tools now work with Gemini via OpenAI API and are managed by the tool registry
-	
+
 	var agent *Agent
 	if *promptFile != "" {
 		const maxPromptSize = 1024 * 1024 // 1MB max
-		
+
 		// Single-shot mode or initial prompt with continue
 		fileInfo, err := os.Stat(*promptFile)
 		if err != nil {
@@ -421,13 +417,13 @@ func main() {
 			fmt.Printf("Error: prompt file too large (max %d bytes)\n", maxPromptSize)
 			return
 		}
-		
+
 		content, err := os.ReadFile(*promptFile)
 		if err != nil {
 			fmt.Printf("Error reading prompt file: %v\n", err)
 			return
 		}
-		
+
 		promptContent := string(content)
 		firstCall := true
 
@@ -441,7 +437,7 @@ func main() {
 			}
 			defer rl.Close()
 		}
-		
+
 		initialGetUserMessage := func() (string, bool) {
 			if !firstCall {
 				if *continueChat {
@@ -462,7 +458,7 @@ func main() {
 			firstCall = false
 			return promptContent, true
 		}
-		
+
 		prompts, err := getPrePrompts(cfg.Agent.PrePrompts)
 		if err != nil {
 			fmt.Printf("Error loading preprompts: %v\n", err)
@@ -492,7 +488,7 @@ func main() {
 			}
 			return line, true
 		}
-		
+
 		prompts, err := getPrePrompts(cfg.Agent.PrePrompts)
 		if err != nil {
 			fmt.Printf("Error loading preprompts: %v\n", err)
@@ -516,16 +512,16 @@ func main() {
 func NewAgent(client *openai.Client, getUserMessage func() (string, bool), baseURL string, rl *readline.Instance, prePrompts []string, requestDelay time.Duration, cfg *config.Config) *Agent {
 	// Initialize tool registry with all available tools (no session dependencies for now)
 	registry := internaltools.NewRegistry(nil)
-	
+
 	return &Agent{
 		client:         client,
 		getUserMessage: getUserMessage,
 		toolRegistry:   registry,
 		baseURL:        baseURL,
 		rl:             rl,
-		prePrompts:   prePrompts,
-		requestDelay: requestDelay,
-		config:       cfg,
+		prePrompts:     prePrompts,
+		requestDelay:   requestDelay,
+		config:         cfg,
 	}
 }
 
@@ -572,23 +568,23 @@ func (a *Agent) Run(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		
+
 		assistantMessage := completion.Choices[0].Message
 		conversation = append(conversation, assistantMessage.ToParam())
 
 		toolResults := []openai.ChatCompletionMessageParamUnion{}
-		
+
 		// Handle text content
 		if assistantMessage.Content != "" {
 			fmt.Printf("\u001b[93mAgent\u001b[0m: %s\n", assistantMessage.Content)
 		}
-		
+
 		// Handle tool calls
 		for _, toolCall := range assistantMessage.ToolCalls {
 			result := a.executeTool(toolCall.ID, toolCall.Function.Name, json.RawMessage(toolCall.Function.Arguments))
 			toolResults = append(toolResults, result)
 		}
-		
+
 		if len(toolResults) == 0 {
 			readUserInput = true
 			// Log conversation state after text-only response
@@ -598,7 +594,7 @@ func (a *Agent) Run(ctx context.Context) error {
 			}
 			continue
 		}
-		
+
 		readUserInput = false
 		conversation = append(conversation, toolResults...)
 
@@ -630,12 +626,12 @@ func (a *Agent) runInference(ctx context.Context, conversation []openai.ChatComp
 
 	// Use all tools now that problematic grep is excluded
 	toolsToUse := openaiTools
-	
+
 	// Add delay if configured
 	if a.requestDelay > 0 {
 		time.Sleep(a.requestDelay)
 	}
-	
+
 	completion, err := a.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Model:     "gemini-2.5-flash",
 		MaxTokens: openai.Int(4096),
@@ -682,7 +678,7 @@ func (a *Agent) logConversation(conversation []openai.ChatCompletionMessageParam
 			return
 		}
 	}
-	
+
 	data, err := json.MarshalIndent(conversation, "", "  ")
 	if err != nil {
 		fmt.Printf("Warning: Failed to marshal conversation for logging: %v\n", err)
@@ -707,7 +703,7 @@ func loadPrePrompts(filePath string) ([]string, error) {
 
 	for lineNum, line := range lines {
 		line = strings.TrimSpace(line)
-		
+
 		// Skip empty lines and comments
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
@@ -735,12 +731,12 @@ func getPrePrompts(prepromptsFile string) ([]string, error) {
 	if prepromptsFile == "" {
 		prepromptsFile = ".agent/prompts/preprompts"
 	}
-	
+
 	// Check if preprompts file exists
 	if _, err := os.Stat(prepromptsFile); os.IsNotExist(err) {
 		return nil, fmt.Errorf("preprompts file %s does not exist", prepromptsFile)
 	}
-	
+
 	return loadPrePrompts(prepromptsFile)
 }
 
@@ -749,12 +745,12 @@ func getPrePrompt(override string) string {
 	if override != "" {
 		return override
 	}
-	
+
 	content, err := os.ReadFile(".agent/prompts/system/system.md")
 	if err != nil {
 		return "" // No system prompt if file doesn't exist or can't be read
 	}
-	
+
 	return string(content)
 }
 
@@ -780,24 +776,24 @@ func GenerateSchema[T any]() openai.FunctionParameters {
 		"type":       "object",
 		"properties": properties,
 	}
-	
+
 	if len(schema.Required) > 0 {
 		result["required"] = schema.Required
 	}
-	
+
 	return result
 }
 
 func convertSchemaProperty(prop *jsonschema.Schema) map[string]any {
 	result := make(map[string]any)
-	
+
 	if prop.Type != "" {
 		result["type"] = prop.Type
 	}
 	if prop.Description != "" {
 		result["description"] = prop.Description
 	}
-	
+
 	return result
 }
 
@@ -815,8 +811,6 @@ func ReadFile(input json.RawMessage) (string, error) {
 	}
 	return string(content), nil
 }
-
-
 
 func EditFile(input json.RawMessage) (string, error) {
 	editFileInput := EditFileInput{}
@@ -949,8 +943,8 @@ func createNewFileAtomic(filePath, content string) (string, error) {
 func generateDiff(filePath, oldContent, newContent string) (string, error) {
 	// Use difflib to generate a unified diff
 	diff := difflib.UnifiedDiff{
-		A:       difflib.SplitLines(oldContent),
-		B:       difflib.SplitLines(newContent),
+		A:        difflib.SplitLines(oldContent),
+		B:        difflib.SplitLines(newContent),
 		FromFile: filePath,
 		ToFile:   filePath,
 		Context:  3, // Lines of context around changes
@@ -1052,10 +1046,10 @@ func checkAndOfferAgentInit() error {
 
 	// .agent directory doesn't exist, prompt user
 	fmt.Print("The .agent directory does not exist. Would you like to create it now? (y/N): ")
-	
+
 	var response string
 	fmt.Scanln(&response)
-	
+
 	response = strings.ToLower(strings.TrimSpace(response))
 	if response == "y" || response == "yes" {
 		if err := copyTemplates(); err != nil {
@@ -1064,7 +1058,7 @@ func checkAndOfferAgentInit() error {
 		fmt.Println("Successfully initialized .agent directory")
 		return nil
 	}
-	
+
 	fmt.Println("Continuing without .agent directory...")
 	return nil
 }
@@ -1082,22 +1076,22 @@ func Grep(input json.RawMessage) (string, error) {
 
 	// Start with base command and pattern
 	args := []string{grepInput.Pattern}
-	
+
 	// Parse space-separated args string if provided
 	if grepInput.Args != "" {
 		parsedArgs := strings.Fields(grepInput.Args)
 		args = append(args, parsedArgs...)
 	}
-	
+
 	cmd := exec.Command("rg", args...)
-	
+
 	// Capture both stdout and stderr
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	
+
 	err = cmd.Run()
-	
+
 	// rg exits with status 1 when no matches are found - this is not an error for us
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 1 {
@@ -1143,93 +1137,92 @@ func GitDiff(input json.RawMessage) (string, error) {
 }
 
 func WebFetch(input json.RawMessage) (string, error) {
-    var webFetchInput WebFetchInput
-    err := json.Unmarshal(input, &webFetchInput)
-    if err != nil {
-        return "", fmt.Errorf("invalid input: %w", err)
-    }
+	var webFetchInput WebFetchInput
+	err := json.Unmarshal(input, &webFetchInput)
+	if err != nil {
+		return "", fmt.Errorf("invalid input: %w", err)
+	}
 
 	// Validate URL
 	if !strings.HasPrefix(webFetchInput.URL, "http://") && !strings.HasPrefix(webFetchInput.URL, "https://") {
 		return "", fmt.Errorf("URL must start with http:// or https://")
 	}
 
-    // Create HTTP client with timeout
-    client := &http.Client{
-        Timeout: 30 * time.Second,
-    }
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
 
-    // Create request
-    req, err := http.NewRequest("GET", webFetchInput.URL, nil)
-    if err != nil {
-        return "", fmt.Errorf("failed to create request: %w", err)
-    }
+	// Create request
+	req, err := http.NewRequest("GET", webFetchInput.URL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
 
 	// Add standard headers
 	req.Header.Set("User-Agent", "Mozilla/5.0 WebFetch Tool")
 	req.Header.Set("Accept", "text/*, application/json, application/xml, application/xhtml+xml")
 
-    // Make request
-    resp, err := client.Do(req)
-    if err != nil {
-        return "", fmt.Errorf("HTTP GET error: %w", err)
-    }
-    defer resp.Body.Close()
+	// Make request
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("HTTP GET error: %w", err)
+	}
+	defer resp.Body.Close()
 
-    if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-        return "", fmt.Errorf("HTTP request failed with status code: %d", resp.StatusCode)
-    }
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("HTTP request failed with status code: %d", resp.StatusCode)
+	}
 
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("error reading response body: %w", err)
+	}
 
-    // Read the response body
-    body, err := io.ReadAll(resp.Body)
-    if err != nil {
-        return "", fmt.Errorf("error reading response body: %w", err)
-    }
+	// Generate filename
+	baseFilename, err := generateFilename(webFetchInput.URL)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate filename: %v", err)
+	}
+	extension, allowed := isAllowedContentType(resp.Header.Get("Content-Type"))
+	if !allowed {
+		return "", fmt.Errorf("unsupported content type: %s", resp.Header.Get("Content-Type"))
+	}
+	filename := baseFilename + extension
 
-    // Generate filename
-    baseFilename, err := generateFilename(webFetchInput.URL)
-    if err != nil {
-        return "", fmt.Errorf("failed to generate filename: %v", err)
-    }
-    extension, allowed := isAllowedContentType(resp.Header.Get("Content-Type"))
-    if !allowed {
-        return "", fmt.Errorf("unsupported content type: %s", resp.Header.Get("Content-Type"))
-    }
-    filename := baseFilename + extension
+	// Create cache directory
+	cacheDir := ".agent/cache/webfetch"
+	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create cache directory: %w", err)
+	}
 
-    // Create cache directory
-    cacheDir := ".agent/cache/webfetch"
-    if err := os.MkdirAll(cacheDir, 0755); err != nil {
-        return "", fmt.Errorf("failed to create cache directory: %w", err)
-    }
+	// Create cache file path
+	cacheFilePath := filepath.Join(cacheDir, filename)
+	file, err := os.Create(cacheFilePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to create cache file: %w", err)
+	}
+	defer file.Close()
 
-    // Create cache file path
-    cacheFilePath := filepath.Join(cacheDir, filename)
-    file, err := os.Create(cacheFilePath)
-    if err != nil {
-        return "", fmt.Errorf("failed to create cache file: %w", err)
-    }
-    defer file.Close()
+	// Write response to cache file
+	_, err = file.Write(body)
+	if err != nil {
+		os.Remove(cacheFilePath) // Clean up on error
+		return "", fmt.Errorf("failed to write content: %w", err)
+	}
 
-    // Write response to cache file
-    _, err = file.Write(body)
-    if err != nil {
-        os.Remove(cacheFilePath) // Clean up on error
-        return "", fmt.Errorf("failed to write content: %w", err)
-    }
+	// Construct result string, including status code
+	result := fmt.Sprintf("{\"path\": \"%s\", \"statusCode\": %d, \"contentType\": \"%s\"}", cacheFilePath, resp.StatusCode, resp.Header.Get("Content-Type"))
 
-    // Construct result string, including status code
-    result := fmt.Sprintf("{\"path\": \"%s\", \"statusCode\": %d, \"contentType\": \"%s\"}", cacheFilePath, resp.StatusCode, resp.Header.Get("Content-Type"))
-
-    return result, nil
+	return result, nil
 }
 
 // generateTodoID creates a simple unique ID for todo items
 func generateTodoID() string {
 	sessionMutex.Lock()
 	defer sessionMutex.Unlock()
-	
+
 	id := "task-" + strconv.Itoa(sessionIDCounter)
 	sessionIDCounter++
 	return id
@@ -1282,50 +1275,50 @@ func TodoWrite(input json.RawMessage) (string, error) {
 	}
 
 	sessionID := getCurrentSessionID()
-	
+
 	// Validate and process todos
 	var processedTodos []TodoItem
 	inProgressCount := 0
-	
+
 	for i, todo := range todos {
 		// Generate ID if not provided
 		if todo.ID == "" {
 			todo.ID = generateTodoID()
 		}
-		
+
 		// Validate status
 		if !validateTodoStatus(todo.Status) {
 			return "", fmt.Errorf("invalid status '%s' for todo %d. Must be one of: pending, in_progress, completed, cancelled", todo.Status, i+1)
 		}
-		
+
 		// Validate priority
 		if !validateTodoPriority(todo.Priority) {
 			return "", fmt.Errorf("invalid priority '%s' for todo %d. Must be one of: high, medium, low", todo.Priority, i+1)
 		}
-		
+
 		// Count in_progress todos
 		if todo.Status == "in_progress" {
 			inProgressCount++
 		}
-		
+
 		// Validate content is not empty
 		if strings.TrimSpace(todo.Content) == "" {
 			return "", fmt.Errorf("todo content cannot be empty for todo %d", i+1)
 		}
-		
+
 		processedTodos = append(processedTodos, todo)
 	}
-	
+
 	// Enforce only one in_progress task rule
 	if inProgressCount > 1 {
 		return "", fmt.Errorf("only one task can be 'in_progress' at a time, found %d", inProgressCount)
 	}
-	
+
 	// Update session state
 	sessionMutex.Lock()
 	sessionTodos[sessionID] = processedTodos
 	sessionMutex.Unlock()
-	
+
 	// Persist to file if we have a session directory
 	if currentSessionDir != "" {
 		todosPath := filepath.Join(currentSessionDir, "todos.json")
@@ -1334,7 +1327,7 @@ func TodoWrite(input json.RawMessage) (string, error) {
 			fmt.Printf("Warning: Failed to persist todos to file: %v\n", err)
 		}
 	}
-	
+
 	// Count non-completed todos for title
 	nonCompletedCount := 0
 	for _, todo := range processedTodos {
@@ -1342,43 +1335,43 @@ func TodoWrite(input json.RawMessage) (string, error) {
 			nonCompletedCount++
 		}
 	}
-	
+
 	// Return result
 	result := map[string]interface{}{
 		"title":  fmt.Sprintf("Updated todo list with %d active todos", nonCompletedCount),
 		"output": fmt.Sprintf("Successfully updated %d todos", len(processedTodos)),
 	}
-	
+
 	jsonResult, err := json.Marshal(result)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal result: %v", err)
 	}
-	
+
 	return string(jsonResult), nil
 }
 
 // TodoRead retrieves the current todo list from session state
 func TodoRead(input json.RawMessage) (string, error) {
 	sessionID := getCurrentSessionID()
-	
+
 	sessionMutex.RLock()
 	todos, exists := sessionTodos[sessionID]
 	sessionMutex.RUnlock()
-	
+
 	if !exists || len(todos) == 0 {
 		result := map[string]interface{}{
 			"title":  "0 todos",
 			"output": "[]",
 		}
-		
+
 		jsonResult, err := json.Marshal(result)
 		if err != nil {
 			return "", fmt.Errorf("failed to marshal result: %v", err)
 		}
-		
+
 		return string(jsonResult), nil
 	}
-	
+
 	// Count non-completed todos for title
 	nonCompletedCount := 0
 	for _, todo := range todos {
@@ -1386,23 +1379,23 @@ func TodoRead(input json.RawMessage) (string, error) {
 			nonCompletedCount++
 		}
 	}
-	
+
 	// Convert todos to JSON
 	todosJSON, err := json.Marshal(todos)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal todos: %v", err)
 	}
-	
+
 	result := map[string]interface{}{
 		"title":  fmt.Sprintf("%d todos", nonCompletedCount),
 		"output": string(todosJSON),
 	}
-	
+
 	jsonResult, err := json.Marshal(result)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal result: %v", err)
 	}
-	
+
 	return string(jsonResult), nil
 }
 
@@ -1415,21 +1408,21 @@ func Head(input json.RawMessage) (string, error) {
 
 	// Start with base command
 	var args []string
-	
+
 	// Parse space-separated args string if provided
 	if headInput.Args != "" {
 		args = strings.Fields(headInput.Args)
 	}
-	
+
 	cmd := exec.Command("head", args...)
-	
+
 	// Capture both stdout and stderr
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	
+
 	err = cmd.Run()
-	
+
 	// Check for errors
 	if err != nil {
 		// If there's stderr output, return that as the error
@@ -1451,21 +1444,21 @@ func Tail(input json.RawMessage) (string, error) {
 
 	// Start with base command
 	var args []string
-	
+
 	// Parse space-separated args string if provided
 	if tailInput.Args != "" {
 		args = strings.Fields(tailInput.Args)
 	}
-	
+
 	cmd := exec.Command("tail", args...)
-	
+
 	// Capture both stdout and stderr
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	
+
 	err = cmd.Run()
-	
+
 	// Check for errors
 	if err != nil {
 		// If there's stderr output, return that as the error
@@ -1487,21 +1480,21 @@ func Cloc(input json.RawMessage) (string, error) {
 
 	// Start with base command
 	var args []string
-	
+
 	// Parse space-separated args string if provided
 	if clocInput.Args != "" {
 		args = strings.Fields(clocInput.Args)
 	}
-	
+
 	cmd := exec.Command("cloc", args...)
-	
+
 	// Capture both stdout and stderr
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	
+
 	err = cmd.Run()
-	
+
 	// Check for errors
 	if err != nil {
 		// If there's stderr output, return that as the error
@@ -1550,7 +1543,7 @@ func generateSessionID() string {
 func initializeSession(resumeSessionID string) (*SessionManager, error) {
 	var sessionID string
 	var isResume bool
-	
+
 	if resumeSessionID != "" {
 		if resumeSessionID == "list" {
 			// Interactive session selection
@@ -1573,11 +1566,11 @@ func initializeSession(resumeSessionID string) (*SessionManager, error) {
 				fmt.Printf("Invalid session ID format: %s\n", resumeSessionID)
 				fmt.Println("Session ID should be in format YYYY-MM-DD-HH-MM-SS")
 				fmt.Println("Would you like to select from available sessions? (y/n): ")
-				
+
 				var response string
 				fmt.Scanln(&response)
 				response = strings.ToLower(strings.TrimSpace(response))
-				
+
 				if response == "y" || response == "yes" {
 					selectedSession, err := selectSessionInteractively()
 					if err != nil {
@@ -1602,17 +1595,17 @@ func initializeSession(resumeSessionID string) (*SessionManager, error) {
 		sessionID = generateSessionID()
 		isResume = false
 	}
-	
+
 	// Set global variables
 	currentSessionID = sessionID
 	currentSessionDir = filepath.Join(".agent", "sessions", sessionID)
-	
+
 	sessionManager := &SessionManager{
 		SessionID:  sessionID,
 		SessionDir: currentSessionDir,
 		TodosPath:  filepath.Join(currentSessionDir, "todos.json"),
 	}
-	
+
 	if isResume {
 		// Load existing session
 		if err := loadSession(sessionManager); err != nil {
@@ -1624,10 +1617,10 @@ func initializeSession(resumeSessionID string) (*SessionManager, error) {
 			return nil, fmt.Errorf("failed to create new session %s: %w", sessionID, err)
 		}
 	}
-	
+
 	// Set global reference
 	currentSessionManager = sessionManager
-	
+
 	return sessionManager, nil
 }
 
@@ -1636,7 +1629,7 @@ func createNewSession(sm *SessionManager) error {
 	if err := os.MkdirAll(sm.SessionDir, 0755); err != nil {
 		return fmt.Errorf("failed to create session directory: %w", err)
 	}
-	
+
 	// Create empty agent.log file
 	logPath := filepath.Join(sm.SessionDir, "agent.log")
 	logFile, err := os.Create(logPath)
@@ -1644,16 +1637,16 @@ func createNewSession(sm *SessionManager) error {
 		return fmt.Errorf("failed to create agent.log: %w", err)
 	}
 	logFile.Close() // We'll reopen when needed
-	
+
 	// Initialize empty todos.json
 	emptyTodos := SessionTodos{Todos: []TodoItem{}}
 	if err := saveTodosToFile(sm.TodosPath, emptyTodos); err != nil {
 		return fmt.Errorf("failed to create todos.json: %w", err)
 	}
-	
+
 	// Initialize empty conversation
 	sm.Conversation = []openai.ChatCompletionMessageParamUnion{}
-	
+
 	return nil
 }
 
@@ -1662,7 +1655,7 @@ func loadSession(sm *SessionManager) error {
 	if _, err := os.Stat(sm.SessionDir); os.IsNotExist(err) {
 		return fmt.Errorf("session directory does not exist")
 	}
-	
+
 	// Load conversation from agent.log
 	logPath := filepath.Join(sm.SessionDir, "agent.log")
 	conversation, err := loadConversationFromFile(logPath)
@@ -1670,18 +1663,18 @@ func loadSession(sm *SessionManager) error {
 		return fmt.Errorf("failed to load conversation: %w", err)
 	}
 	sm.Conversation = conversation
-	
+
 	// Load todos from todos.json
 	todos, err := loadTodosFromFile(sm.TodosPath)
 	if err != nil {
 		return fmt.Errorf("failed to load todos: %w", err)
 	}
-	
+
 	// Update session state with loaded todos
 	sessionMutex.Lock()
 	sessionTodos[sm.SessionID] = todos.Todos
 	sessionMutex.Unlock()
-	
+
 	return nil
 }
 
@@ -1691,22 +1684,22 @@ func loadConversationFromFile(logPath string) ([]openai.ChatCompletionMessagePar
 		// Return empty conversation if file doesn't exist (new session)
 		return []openai.ChatCompletionMessageParamUnion{}, nil
 	}
-	
+
 	data, err := os.ReadFile(logPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read log file: %w", err)
 	}
-	
+
 	// Handle empty file
 	if len(data) == 0 {
 		return []openai.ChatCompletionMessageParamUnion{}, nil
 	}
-	
+
 	var conversation []openai.ChatCompletionMessageParamUnion
 	if err := json.Unmarshal(data, &conversation); err != nil {
 		return nil, fmt.Errorf("failed to parse conversation JSON: %w", err)
 	}
-	
+
 	return conversation, nil
 }
 
@@ -1716,22 +1709,22 @@ func loadTodosFromFile(todosPath string) (SessionTodos, error) {
 		// Return empty todos if file doesn't exist
 		return SessionTodos{Todos: []TodoItem{}}, nil
 	}
-	
+
 	data, err := os.ReadFile(todosPath)
 	if err != nil {
 		return SessionTodos{}, fmt.Errorf("failed to read todos file: %w", err)
 	}
-	
+
 	// Handle empty file
 	if len(data) == 0 {
 		return SessionTodos{Todos: []TodoItem{}}, nil
 	}
-	
+
 	var todos SessionTodos
 	if err := json.Unmarshal(data, &todos); err != nil {
 		return SessionTodos{}, fmt.Errorf("failed to parse todos JSON: %w", err)
 	}
-	
+
 	return todos, nil
 }
 
@@ -1740,28 +1733,28 @@ func saveTodosToFile(todosPath string, todos SessionTodos) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal todos: %w", err)
 	}
-	
+
 	// Ensure directory exists
 	if err := os.MkdirAll(filepath.Dir(todosPath), 0755); err != nil {
 		return fmt.Errorf("failed to create todos directory: %w", err)
 	}
-	
+
 	return os.WriteFile(todosPath, data, 0644)
 }
 
 func listAvailableSessions() ([]string, error) {
 	sessionsDir := ".agent/sessions"
-	
+
 	// Check if sessions directory exists
 	if _, err := os.Stat(sessionsDir); os.IsNotExist(err) {
 		return []string{}, nil
 	}
-	
+
 	entries, err := os.ReadDir(sessionsDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read sessions directory: %w", err)
 	}
-	
+
 	var sessions []string
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -1772,7 +1765,7 @@ func listAvailableSessions() ([]string, error) {
 			}
 		}
 	}
-	
+
 	return sessions, nil
 }
 
@@ -1787,39 +1780,39 @@ func selectSessionInteractively() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to list available sessions: %w", err)
 	}
-	
+
 	if len(sessions) == 0 {
 		fmt.Println("No previous sessions found. Creating new session...")
 		return "", nil
 	}
-	
+
 	// Sort sessions in descending order (newest first)
 	sort.Slice(sessions, func(i, j int) bool {
 		return sessions[i] > sessions[j]
 	})
-	
+
 	fmt.Println("Available sessions:")
 	for i, session := range sessions {
 		fmt.Printf("  %d) %s\n", i+1, session)
 	}
 	fmt.Printf("  %d) Create new session\n", len(sessions)+1)
 	fmt.Printf("\nSelect a session (1-%d): ", len(sessions)+1)
-	
+
 	var choice int
 	_, err = fmt.Scanf("%d", &choice)
 	if err != nil {
 		return "", fmt.Errorf("invalid input: please enter a number")
 	}
-	
+
 	if choice < 1 || choice > len(sessions)+1 {
 		return "", fmt.Errorf("invalid choice: please select a number between 1 and %d", len(sessions)+1)
 	}
-	
+
 	if choice == len(sessions)+1 {
 		// User chose to create new session
 		return "", nil
 	}
-	
+
 	// Return selected session (convert from 1-based to 0-based index)
 	return sessions[choice-1], nil
 }
@@ -1880,5 +1873,3 @@ func HtmlToMarkdown(input json.RawMessage) (string, error) {
 
 	return string(jsonResult), nil
 }
-
-

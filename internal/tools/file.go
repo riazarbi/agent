@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/openai/openai-go/v2"
 	"github.com/invopop/jsonschema"
+	"github.com/openai/openai-go/v2"
 	difflib "github.com/pmezard/go-difflib/difflib"
 
 	"agent/internal/editcorrector"
@@ -33,7 +33,7 @@ func NewFileTools() []Tool {
 			Handler:     fileOps.ReadFile,
 		},
 		{
-			Name:        "edit_file",
+			Name: "edit_file",
 			Description: `Make edits to a text file.
 
 Replaces 'old_str' with 'new_str' in the given file. 'old_str' and 'new_str' MUST be different from each other.
@@ -75,10 +75,10 @@ type ReadFileInput struct {
 }
 
 type EditFileInput struct {
-	Path               string `json:"path" jsonschema_description:"The path to the file"`
-	OldStr             string `json:"old_str" jsonschema_description:"Text to search for - must match exactly and must only have one match exactly"`
-	NewStr             string `json:"new_str" jsonschema_description:"Text to replace old_str with"`
-	ExpectedReplacements *int  `json:"expected_replacements,omitempty" jsonschema_description:"Optional: The expected number of replacements. If actual replacements differ, an error is returned."`
+	Path                 string `json:"path" jsonschema_description:"The path to the file"`
+	OldStr               string `json:"old_str" jsonschema_description:"Text to search for - must match exactly and must only have one match exactly"`
+	NewStr               string `json:"new_str" jsonschema_description:"Text to replace old_str with"`
+	ExpectedReplacements *int   `json:"expected_replacements,omitempty" jsonschema_description:"Optional: The expected number of replacements. If actual replacements differ, an error is returned."`
 }
 
 type DeleteFileInput struct {
@@ -96,7 +96,6 @@ type TailInput struct {
 type ClocInput struct {
 	Args string `json:"args,omitempty" jsonschema_description:"Optional cloc arguments as space-separated string (e.g. '--exclude-dir=.git path')"`
 }
-
 
 // File operation implementations
 func (f *FileOperations) ReadFile(input json.RawMessage) (string, error) {
@@ -226,7 +225,6 @@ func (f *FileOperations) DeleteFile(input json.RawMessage) (string, error) {
 	return fmt.Sprintf("Successfully deleted file %s", deleteFileInput.Path), nil
 }
 
-
 // Helper methods for EditFile
 func (f *FileOperations) createNewFileAtomic(filePath, content string) (string, error) {
 	dir := path.Dir(filePath)
@@ -268,8 +266,8 @@ func (f *FileOperations) createNewFileAtomic(filePath, content string) (string, 
 func (f *FileOperations) generateDiff(filePath, oldContent, newContent string) (string, error) {
 	// Use difflib to generate a unified diff
 	diff := difflib.UnifiedDiff{
-		A:       difflib.SplitLines(oldContent),
-		B:       difflib.SplitLines(newContent),
+		A:        difflib.SplitLines(oldContent),
+		B:        difflib.SplitLines(newContent),
 		FromFile: filePath,
 		ToFile:   filePath,
 		Context:  3, // Lines of context around changes
@@ -309,11 +307,11 @@ func GenerateSchema[T any]() openai.FunctionParameters {
 		"type":       "object",
 		"properties": properties,
 	}
-	
+
 	if len(required) > 0 {
 		result["required"] = required
 	}
-	
+
 	return result
 }
 
@@ -355,21 +353,21 @@ func (f *FileOperations) Head(input json.RawMessage) (string, error) {
 
 	// Start with base command
 	var args []string
-	
+
 	// Parse space-separated args string if provided
 	if headInput.Args != "" {
 		args = strings.Fields(headInput.Args)
 	}
-	
+
 	cmd := exec.Command("head", args...)
-	
+
 	// Capture both stdout and stderr
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	
+
 	err = cmd.Run()
-	
+
 	// Check for errors
 	if err != nil {
 		// If there's stderr output, return that as the error
@@ -391,21 +389,21 @@ func (f *FileOperations) Tail(input json.RawMessage) (string, error) {
 
 	// Start with base command
 	var args []string
-	
+
 	// Parse space-separated args string if provided
 	if tailInput.Args != "" {
 		args = strings.Fields(tailInput.Args)
 	}
-	
+
 	cmd := exec.Command("tail", args...)
-	
+
 	// Capture both stdout and stderr
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	
+
 	err = cmd.Run()
-	
+
 	// Check for errors
 	if err != nil {
 		// If there's stderr output, return that as the error
@@ -427,21 +425,21 @@ func (f *FileOperations) Cloc(input json.RawMessage) (string, error) {
 
 	// Start with base command
 	var args []string
-	
+
 	// Parse space-separated args string if provided
 	if clocInput.Args != "" {
 		args = strings.Fields(clocInput.Args)
 	}
-	
+
 	cmd := exec.Command("cloc", args...)
-	
+
 	// Capture both stdout and stderr
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	
+
 	err = cmd.Run()
-	
+
 	// Check for errors
 	if err != nil {
 		// If there's stderr output, return that as the error

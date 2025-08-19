@@ -49,7 +49,7 @@ func (e FileOperationError) Unwrap() error {
 	return e.Wrapped
 }
 
-// EditError represents file editing operation failures  
+// EditError represents file editing operation failures
 type EditError struct {
 	Type    EditErrorType
 	Path    string
@@ -60,20 +60,20 @@ type EditError struct {
 type EditErrorType string
 
 const (
-	EditErrorInvalidPath           EditErrorType = "EDIT_INVALID_PATH"
-	EditErrorFileReadError         EditErrorType = "EDIT_FILE_READ_ERROR"
-	EditErrorFileNotFound          EditErrorType = "EDIT_FILE_NOT_FOUND"
-	EditErrorFileStatError         EditErrorType = "EDIT_FILE_STAT_ERROR"
-	EditErrorCreateExistingFile    EditErrorType = "ATTEMPT_TO_CREATE_EXISTING_FILE"
-	EditErrorNoOccurrenceFound     EditErrorType = "EDIT_NO_OCCURRENCE_FOUND"
-	EditErrorOccurrenceMismatch    EditErrorType = "EDIT_EXPECTED_OCCURRENCE_MISMATCH"
-	EditErrorDiffGeneration        EditErrorType = "EDIT_DIFF_GENERATION_ERROR"
-	EditErrorTempFileCreate        EditErrorType = "EDIT_TEMP_FILE_CREATE_ERROR"
-	EditErrorTempFileWrite         EditErrorType = "EDIT_TEMP_FILE_WRITE_ERROR"
-	EditErrorFileRename            EditErrorType = "EDIT_FILE_RENAME_ERROR"
-	EditErrorDirCreate             EditErrorType = "EDIT_DIR_CREATE_ERROR"
-	EditErrorCreateTempFile        EditErrorType = "EDIT_CREATE_TEMP_FILE_ERROR"
-	EditErrorCreateTempWrite       EditErrorType = "EDIT_CREATE_TEMP_WRITE_ERROR"
+	EditErrorInvalidPath        EditErrorType = "EDIT_INVALID_PATH"
+	EditErrorFileReadError      EditErrorType = "EDIT_FILE_READ_ERROR"
+	EditErrorFileNotFound       EditErrorType = "EDIT_FILE_NOT_FOUND"
+	EditErrorFileStatError      EditErrorType = "EDIT_FILE_STAT_ERROR"
+	EditErrorCreateExistingFile EditErrorType = "ATTEMPT_TO_CREATE_EXISTING_FILE"
+	EditErrorNoOccurrenceFound  EditErrorType = "EDIT_NO_OCCURRENCE_FOUND"
+	EditErrorOccurrenceMismatch EditErrorType = "EDIT_EXPECTED_OCCURRENCE_MISMATCH"
+	EditErrorDiffGeneration     EditErrorType = "EDIT_DIFF_GENERATION_ERROR"
+	EditErrorTempFileCreate     EditErrorType = "EDIT_TEMP_FILE_CREATE_ERROR"
+	EditErrorTempFileWrite      EditErrorType = "EDIT_TEMP_FILE_WRITE_ERROR"
+	EditErrorFileRename         EditErrorType = "EDIT_FILE_RENAME_ERROR"
+	EditErrorDirCreate          EditErrorType = "EDIT_DIR_CREATE_ERROR"
+	EditErrorCreateTempFile     EditErrorType = "EDIT_CREATE_TEMP_FILE_ERROR"
+	EditErrorCreateTempWrite    EditErrorType = "EDIT_CREATE_TEMP_WRITE_ERROR"
 )
 
 func (e EditError) Error() string {

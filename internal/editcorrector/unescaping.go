@@ -10,7 +10,7 @@ func UnescapeGoString(inputString string) string {
 	// strconv.Unquote can unquote a Go string literal.
 	// We need to add double quotes around the input to make it a valid string literal.
 	quotedInput := `"` + inputString + `"`
-	
+
 	unquoted, err := strconv.Unquote(quotedInput)
 	if err != nil {
 		// If unquoting fails, it means it's not a valid Go string literal

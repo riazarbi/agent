@@ -10,7 +10,7 @@ import (
 
 // TodoOperations handles todo-related tool operations
 type TodoOperations struct {
-	sessionManager *session.Manager
+	sessionManager   session.SessionManager
 	currentSessionID string
 }
 
@@ -25,12 +25,12 @@ type TodoReadInput struct {
 }
 
 // NewTodoTools returns todo operation tools configured with session manager
-func NewTodoTools(sessionManager *session.Manager, currentSessionID string) []Tool {
+func NewTodoTools(sessionManager session.SessionManager, currentSessionID string) []Tool {
 	ops := &TodoOperations{
 		sessionManager:   sessionManager,
 		currentSessionID: currentSessionID,
 	}
-	
+
 	return []Tool{
 		{
 			Name:        "todowrite",
@@ -53,7 +53,7 @@ func (t *TodoOperations) TodoWrite(input json.RawMessage) (string, error) {
 	if err := json.Unmarshal(input, &todoWriteInput); err != nil {
 		return "", fmt.Errorf("invalid input: %v", err)
 	}
-	
+
 	// Parse the JSON string containing the todos array
 	var todos []session.TodoItem
 	if todoWriteInput.TodosJSON != "" {
@@ -61,50 +61,50 @@ func (t *TodoOperations) TodoWrite(input json.RawMessage) (string, error) {
 			return "", fmt.Errorf("invalid todos JSON: %v", err)
 		}
 	}
-	
+
 	// Validate and process todos
 	var processedTodos []session.TodoItem
 	inProgressCount := 0
-	
+
 	for i, todo := range todos {
 		// Generate ID if not provided
 		if todo.ID == "" {
 			todo.ID = t.sessionManager.GenerateTodoID()
 		}
-		
+
 		// Validate status
 		if !session.ValidateTodoStatus(todo.Status) {
 			return "", fmt.Errorf("invalid status '%s' for todo %d. Must be one of: pending, in_progress, completed, cancelled", todo.Status, i+1)
 		}
-		
+
 		// Validate priority
 		if !session.ValidateTodoPriority(todo.Priority) {
 			return "", fmt.Errorf("invalid priority '%s' for todo %d. Must be one of: high, medium, low", todo.Priority, i+1)
 		}
-		
+
 		// Count in_progress todos
 		if todo.Status == "in_progress" {
 			inProgressCount++
 		}
-		
+
 		// Validate content is not empty
 		if strings.TrimSpace(todo.Content) == "" {
 			return "", fmt.Errorf("todo content cannot be empty for todo %d", i+1)
 		}
-		
+
 		processedTodos = append(processedTodos, todo)
 	}
-	
+
 	// Enforce single in_progress todo rule
 	if inProgressCount > 1 {
 		return "", fmt.Errorf("only one todo can be in_progress at a time, found %d", inProgressCount)
 	}
-	
+
 	// Save todos using session manager
 	if err := t.sessionManager.SaveTodos(t.currentSessionID, processedTodos); err != nil {
 		return "", fmt.Errorf("failed to save todos: %v", err)
 	}
-	
+
 	// Count non-completed todos for title
 	nonCompletedCount := 0
 	for _, todo := range processedTodos {
@@ -112,18 +112,18 @@ func (t *TodoOperations) TodoWrite(input json.RawMessage) (string, error) {
 			nonCompletedCount++
 		}
 	}
-	
+
 	// Return result
 	result := map[string]interface{}{
 		"title":  fmt.Sprintf("Updated todo list with %d active todos", nonCompletedCount),
 		"output": fmt.Sprintf("Successfully updated %d todos", len(processedTodos)),
 	}
-	
+
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal result: %v", err)
 	}
-	
+
 	return string(resultJSON), nil
 }
 
@@ -133,7 +133,7 @@ func (t *TodoOperations) TodoRead(input json.RawMessage) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get todos: %v", err)
 	}
-	
+
 	if len(todos) == 0 {
 		result := map[string]interface{}{
 			"title":  "0 todos",
@@ -145,7 +145,7 @@ func (t *TodoOperations) TodoRead(input json.RawMessage) (string, error) {
 		}
 		return string(resultJSON), nil
 	}
-	
+
 	// Count non-completed todos for title
 	nonCompletedCount := 0
 	for _, todo := range todos {
@@ -153,22 +153,22 @@ func (t *TodoOperations) TodoRead(input json.RawMessage) (string, error) {
 			nonCompletedCount++
 		}
 	}
-	
+
 	// Convert todos to JSON
 	todosJSON, err := json.Marshal(todos)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal todos: %v", err)
 	}
-	
+
 	result := map[string]interface{}{
 		"title":  fmt.Sprintf("%d todos", nonCompletedCount),
 		"output": string(todosJSON),
 	}
-	
+
 	resultJSON, err := json.Marshal(result)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal result: %v", err)
 	}
-	
+
 	return string(resultJSON), nil
 }

@@ -11,8 +11,8 @@ import (
 
 // Tool represents a single tool that can be executed by the agent
 type Tool struct {
-	Name        string                     `json:"name"`
-	Description string                     `json:"description"`
+	Name        string                    `json:"name"`
+	Description string                    `json:"description"`
 	InputSchema openai.FunctionParameters `json:"input_schema"`
 	Handler     func(input json.RawMessage) (string, error)
 }
@@ -24,7 +24,7 @@ type Registry struct {
 
 // RegistryConfig provides dependencies for tools that need them
 type RegistryConfig struct {
-	SessionManager   *session.Manager
+	SessionManager   session.SessionManager
 	CurrentSessionID string
 }
 
@@ -44,7 +44,7 @@ func (r *Registry) registerDefaultTools(config *RegistryConfig) {
 	r.Register(NewFileTools()...)
 	r.Register(NewWebTools()...)
 	r.Register(NewGitTools()...)
-	
+
 	// Only register todo tools if session dependencies are provided
 	if config != nil && config.SessionManager != nil && config.CurrentSessionID != "" {
 		r.Register(NewTodoTools(config.SessionManager, config.CurrentSessionID)...)

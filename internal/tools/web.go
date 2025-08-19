@@ -49,7 +49,7 @@ type HtmlToMarkdownInput struct {
 
 // Supported content types for WebFetch
 var allowedContentTypes = map[string]string{
-	"text/plain":             ".txt",
+	"text/plain":            ".txt",
 	"text/html":             ".html",
 	"text/xml":              ".xml",
 	"application/json":      ".json",
