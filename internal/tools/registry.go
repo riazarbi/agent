@@ -45,6 +45,7 @@ func (r *Registry) registerDefaultTools(config *RegistryConfig) {
 	r.Register(NewWebTools()...)
 	r.Register(NewGitTools()...)
 	r.Register(NewCpTool())
+	r.Register(NewMkdirTool())
 
 	// Only register todo tools if session dependencies are provided
 	if config != nil && config.SessionManager != nil && config.CurrentSessionID != "" {
