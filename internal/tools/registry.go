@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/openai/openai-go/v2"
-
 	"agent/internal/session"
 )
 
@@ -13,7 +11,7 @@ import (
 type Tool struct {
 	Name        string                    `json:"name"`
 	Description string                    `json:"description"`
-	InputSchema openai.FunctionParameters `json:"input_schema"`
+	InputSchema map[string]any `json:"input_schema"`
 	Handler     func(input json.RawMessage) (string, error)
 }
 
@@ -44,8 +42,7 @@ func (r *Registry) registerDefaultTools(config *RegistryConfig) {
 	r.Register(NewFileTools()...)
 	r.Register(NewWebTools()...)
 	r.Register(NewGitTools()...)
-	r.Register(NewCpTool())
-	r.Register(NewMkdirTool())
+	r.Register(NewSystemTools()...)
 
 	// Only register todo tools if session dependencies are provided
 	if config != nil && config.SessionManager != nil && config.CurrentSessionID != "" {
