@@ -5,19 +5,20 @@
 - [x] delete_file	Modify existing files
 - [x] list_files	List directory contents
 - [x] read_file	Read file contents
-- [ ] create_file
+- [ ] touch
 - [ ] write_file
-- [ ] move_file
-- [ ] create_directory
-- [ ] delete_directory
+- [ ] append_file
+- [ ] mv
+- [ ] mkdir
+- [ ] rm
 - [ ] archive
 - [ ] expand webfetch
 - [ ] multiedit - see https://gist.github.com/wong2/e0f34aac66caf890a332f7b6f9e2ba8f#multiedit
 - [x] git_diff Obtain the git diff
 - [x] grep	Search file contents
 - [x] glob	Find files by pattern
-- [ ] todowrite	Manage todo lists
-- [ ] todoread	Read todo lists -  see https://gist.github.com/wong2/e0f34aac66caf890a332f7b6f9e2ba8f#todoread
+- [x] todowrite	Manage todo lists
+- [x] todoread	Read todo lists -  see https://gist.github.com/wong2/e0f34aac66caf890a332f7b6f9e2ba8f#todoread
 - [x] webfetch	Fetch web content
 - [x] html-to-markdown Convert html content to markdown
 - [ ] taskfile executor
