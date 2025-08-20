@@ -4,7 +4,53 @@ This story addresses the need for users to extend the LLM agent's capabilities w
 
 ## Past Attempts
 
-If this user story has been attempted before, the changes made will appear in the git diff. Our policy is to only make a single commit per user story, so you can always review the git diff to review progress across attempts.
+Here is some feedback from the executor of the last (failed) attempt:
+
+Here's a breakdown of why I think this loop occurred and what practices I could adopt to increase the likelihood of success if I were to approach this again:
+
+**Why the loop happened:**
+
+1.  **Insufficient Understanding of External Library (`go-task/task/v3`):** This is the root cause. I jumped into implementing the `UserDefinedTaskTools` without a deep enough understanding of how the `go-task` library is designed to be used programmatically.
+    *   I made assumptions about how `task.NewExecutor` should be initialized (e.g., trying to use `task.WithTaskfile` incorrectly).
+    *   I misunderstood the type of `tf.Tasks` (it's a map, not a slice, leading to incorrect iteration).
+    *   I incorrectly passed arguments to `e.Run` (it expects `*task.Call` variadic arguments, not the `taskfile.Taskfile` object itself as a primary argument).
+    *   I misidentified the error type for exit codes (`exec.ExitError` instead of `task.ExitError`).
+
+2.  **Lack of Isolated, Incremental Development and Testing:** I was trying to fix multiple issues across different parts of the code and then attempting a full build. This makes debugging incredibly difficult because a single build error can mask several underlying problems. I didn't verify each small change independently.
+
+3.  **Reactive vs. Proactive Problem Solving:** My process became reactive. An error occurred, I'd try a fix based on a superficial understanding of the error message, then recompile. This cycle continued because I wasn't stepping back to understand the fundamental API of the `go-task` library.
+
+4.  **Limited Debugging Capabilities:** Without a true interactive debugger or the ability to run arbitrary Go code snippets to inspect types or variable values, my primary feedback loop was the `task build` command, which is slow and only provides compilation errors, not runtime insights.
+
+**Practices to adopt for increased likelihood of success if I were to do it again:**
+
+1.  **Prioritize Deep Dive into External Library Documentation/Examples:**
+    *   **Before writing a single line of code:** I would spend significant time reading the `github.com/go-task/task/v3` documentation. I would specifically look for examples of how to:
+        *   Embed the `go-task` library in a Go application.
+        *   Programmatically load a `Taskfile`.
+        *   Create and configure `task.NewExecutor`.
+        *   Execute specific tasks, especially with arguments.
+        *   Capture `stdout`, `stderr`, and exit codes.
+    *   This would clarify the correct API usage for `task.NewExecutor`, `tf.Tasks` iteration, `e.Run` arguments, and error handling.
+
+2.  **Adopt a Test-Driven Development (TDD) or Small-Step Incremental Approach:**
+    *   **Break down the problem:** Instead of trying to implement everything at once, I would tackle one requirement at a time (e.g., first, ensure Taskfile existence check is correct; second, implement `ListUserTasks` correctly and verify it compiles and *conceptually* works; third, implement `RunUserTask`).
+    *   **Write simple, isolated test cases (mentally or actually):** If I had the capability, I'd write a minimal Go file that *only* uses the `go-task` library to replicate the exact scenario I'm trying to implement (e.g., just load a Taskfile and print task names) to ensure I understand that isolated piece correctly before integrating. Since I don't have that, I need to simulate this mentally or with very small code changes followed by immediate builds.
+
+3.  **Enhanced Error Analysis and Reflection:**
+    *   When an error occurs, I would not rush to a solution. I would take the time to Google the specific error message along with the library name (e.g., "go-task undefined task.WithTaskfile") to see if there are common pitfalls or documented usage patterns.
+    *   I would cross-reference error messages with the library's official source code if necessary to understand type definitions or function signatures.
+
+4.  **Focus on Data Structures and Types:**
+    *   The `tf.Tasks` being a map was a repeated issue. Before iterating, I should explicitly verify the type of the collection I'm working with from the library's documentation or Go's type inference.
+
+5.  **Utilize "Undo" more readily:** If a change introduces multiple new errors or doesn't resolve the intended problem, I should be quicker to revert to the last known working state and re-evaluate, rather than piling on more fixes.
+
+In essence, the core lesson is to **understand the tools thoroughly before attempting complex integration**, and to build solutions in **small, verifiable steps** rather than large, speculative leaps.
+
+**Build and test functionality often.**
+
+**use the task tool along with build and dev to test functionality**
 
 ## Requirements
 
@@ -56,6 +102,9 @@ type ListUserTasksOutput struct {
 *   **Missing Taskfile**: The system should gracefully handle the absence of `.agent/Taskfile.yml` without errors, simply not registering the user-defined task tools.
 
 ## Testing Considerations
+
+**WE HAVE ADDED A 'task' TOOL FOR YOU TO USE TO BUILD THE BINARY. THIS WILL NOT REPLACE YOUR BINARY, IT WILL BUILD IT TO A SEPARATE LOCATION.**
+**THE BUILD TASK IS `task build`** 
 
 *   **Positive Scenarios**:
     *   Verify `list_user_tasks` correctly lists tasks from an existing `Taskfile.yml`.

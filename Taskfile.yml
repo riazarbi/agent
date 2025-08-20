@@ -76,7 +76,7 @@ tasks:
     desc: Run the agent in development mode
     deps: [build]
     cmds:
-      - ./{{.BUILD_DIR}}/{{.BINARY_NAME}}
+      - ./{{.BUILD_DIR}}/{{.BINARY_NAME}} {{.CLI_ARGS}}
 
   check:
     desc: Run all quality checks (tests, linting, formatting)
