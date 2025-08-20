@@ -67,6 +67,12 @@ If the file specified with path doesn't exist, it will be created.`,
 			InputSchema: GenerateSchema[ListFilesInput](),
 			Handler:     fileOps.ListFiles,
 		},
+		{
+			Name:        "append_file",
+			Description: "Append content to a file, or create the file if it doesn't exist.",
+			InputSchema: GenerateSchema[AppendFileInput](),
+			Handler:     fileOps.AppendFile,
+		},
 	}
 }
 
