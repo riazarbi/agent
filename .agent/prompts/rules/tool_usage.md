@@ -67,9 +67,10 @@
 - Must verify tool outputs match your statements
 
 **Judicious Use**
-- When you don't know the size of a file, first use head, tail, and cloc to work out what you are dealing with.
-- Often you can answer your question using head, tail, cloc and rg.
+- When you don't know the size of a file, first use simple passthrough tools like `head`, `tail`, and `cloc` to understand its content and size.
+- For searching patterns, `rg` is often the most efficient tool.
+- For complex, atomic file modifications involving multiple changes, use `multi_edit`.
+- Often you can answer your question using simple passthrough tools and `rg`.
 
 **Quick Decision Guide:**
 When in doubt: Use the tool and see what it actually shows
-
