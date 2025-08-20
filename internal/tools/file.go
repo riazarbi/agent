@@ -79,6 +79,12 @@ If the file specified with path doesn't exist, it will be created.`,
 			InputSchema: GenerateSchema[WriteFileInput](),
 			Handler:     (&WriteFileTool{}).ExecuteJSON,
 		},
+		{
+			Name: "multi_edit",
+			Description: `Perform multiple find-and-replace operations on a single file atomically and sequentially. All edits are applied in the order they are provided, and each subsequent edit operates on the result of the previous edit. The entire set of edits is atomic; either all edits succeed and are applied, or if any edit fails, none are applied.`,
+			InputSchema: GenerateSchema[MultiEditInput](),
+			Handler: fileOps.MultiEdit,
+		},
 	}
 }
 
@@ -115,6 +121,15 @@ type HeadInput struct {
 
 type TailInput struct {
 	Args string `json:"args,omitempty" jsonschema_description:"Optional tail arguments as space-separated string (e.g. '-n 20 -f filename')"`
+}
+
+type MultiEditInput struct {
+	FilePath string `json:"file_path" jsonschema_description:"Absolute path to the file"`
+	Edits    []struct {
+		OldString  string `json:"old_string" jsonschema_description:"Text to replace"`
+		NewString  string `json:"new_string" jsonschema_description:"Text to replace with"`
+		ReplaceAll *bool  `json:"replace_all,omitempty" jsonschema_description:"Optional: true to replace all occurrences, false by default"`
+	} `json:"edits" jsonschema_description:"Array of edits to apply sequentially"`
 }
 
 type ClocInput struct {
@@ -265,7 +280,7 @@ func (f *FileOperations) createNewFileAtomic(filePath, content string) (string, 
 		return "", fmt.Errorf("EDIT_CREATE_DIFF_GENERATION_ERROR: failed to generate diff for new file: %w", err)
 	}
 
-	return fmt.Sprintf(`{"message": "Created new file: %s with provided content.", "actual_replacements": 0, "diff": %s}`, filePath, strconv.Quote(diff)), nil
+	return fmt.Sprintf(`{"message": "Created new file: %s with provided content.", "actual_replacements": 1, "diff": %s}`, filePath, strconv.Quote(diff)), nil
 }
 
 // generateDiff creates a unified diff string between old and new content
@@ -536,4 +551,112 @@ func (f *FileOperations) AppendFile(input json.RawMessage) (string, error) {
 	}
 
 	return fmt.Sprintf(`{"message": "Successfully appended to '%s'."}`, appendFileInput.Path), nil
+}
+
+func (f *FileOperations) MultiEdit(input json.RawMessage) (string, error) {
+	var multiEditInput MultiEditInput
+	if err := json.Unmarshal(input, &multiEditInput); err != nil {
+		return "", fmt.Errorf("invalid input: %w", err)
+	}
+
+	if multiEditInput.FilePath == "" {
+		return "", errors.NewEditError(errors.EditErrorInvalidPath, multiEditInput.FilePath, "file path cannot be empty", nil)
+	}
+
+	// Read original content
+	originalContentBytes, err := os.ReadFile(multiEditInput.FilePath)
+	var originalContent string
+	fileExisted := true
+	if err == nil {
+		originalContent = string(originalContentBytes)
+	} else if os.IsNotExist(err) {
+		fileExisted = false
+	} else {
+		return "", errors.NewEditError(errors.EditErrorFileReadError, multiEditInput.FilePath, "failed to read file", err)
+	}
+
+	// Check for attempt to create existing file scenario (Scenario 4 from previous QA)
+	if fileExisted && len(multiEditInput.Edits) > 0 && editcorrector.UnescapeGoString(multiEditInput.Edits[0].OldString) == "" {
+		return "", errors.NewEditError(errors.EditErrorCreateExistingFile, multiEditInput.FilePath, "file already exists, cannot create using empty old_string in multi-edit", nil)
+	}
+
+	currentContent := originalContent
+	var totalReplacements int
+
+	// Determine initial content for edits
+	if !fileExisted && len(multiEditInput.Edits) > 0 && editcorrector.UnescapeGoString(multiEditInput.Edits[0].OldString) == "" {
+		// New file creation scenario: start with the new_string of the first edit as currentContent
+		firstEdit := multiEditInput.Edits[0]
+		if editcorrector.UnescapeGoString(firstEdit.OldString) == editcorrector.UnescapeGoString(firstEdit.NewString) {
+			return "", fmt.Errorf("EDIT_OLD_NEW_IDENTICAL: old_string and new_string cannot be identical for first edit (file creation)")
+		}
+		currentContent = editcorrector.UnescapeGoString(firstEdit.NewString)
+		totalReplacements = 1 // Count the creation as a replacement
+	} else if fileExisted && len(multiEditInput.Edits) > 0 && editcorrector.UnescapeGoString(multiEditInput.Edits[0].OldString) == "" {
+		// Scenario: Attempt to create an existing file using empty old_string
+		return "", errors.NewEditError(errors.EditErrorCreateExistingFile, multiEditInput.FilePath, "file already exists, cannot create using empty old_string in multi-edit", nil)
+	} else if !fileExisted {
+		return "", errors.NewEditError(errors.EditErrorFileNotFound, multiEditInput.FilePath, "file not found and first edit is not a creation", nil)
+	}
+
+	// Apply edits sequentially on the currentContent in memory
+	startIndex := 0
+	if !fileExisted && len(multiEditInput.Edits) > 0 && editcorrector.UnescapeGoString(multiEditInput.Edits[0].OldString) == "" {
+		startIndex = 1 // Skip the first edit as it was used for initial content
+	}
+
+	for i := startIndex; i < len(multiEditInput.Edits); i++ {
+		edit := multiEditInput.Edits[i]
+		correctedOldStr := editcorrector.UnescapeGoString(edit.OldString)
+		correctedNewStr := editcorrector.UnescapeGoString(edit.NewString)
+
+		if correctedOldStr == correctedNewStr {
+			return "", fmt.Errorf("EDIT_OLD_NEW_IDENTICAL: old_string and new_string cannot be identical for edit %d", i)
+		}
+
+		var replacements int
+		if edit.ReplaceAll != nil && *edit.ReplaceAll {
+			replacements = strings.Count(currentContent, correctedOldStr)
+			if replacements == 0 {
+				return "", fmt.Errorf("MULTI_EDIT_NO_OCCURRENCE_FOUND: edit %d (old_string: '%s') not found. Rolling back.", i, edit.OldString)
+			}
+			currentContent = strings.ReplaceAll(currentContent, correctedOldStr, correctedNewStr)
+		} else {
+			if !strings.Contains(currentContent, correctedOldStr) {
+				// Rollback to original content and return error
+				return "", fmt.Errorf("MULTI_EDIT_NO_OCCURRENCE_FOUND: edit %d (old_string: '%s') not found. Rolling back.", i, edit.OldString)
+			}
+			replacements = 1
+			currentContent = strings.Replace(currentContent, correctedOldStr, correctedNewStr, 1)
+		}
+		totalReplacements += replacements
+	}
+
+	// Generate diff
+	diff, err := f.generateDiff(multiEditInput.FilePath, originalContent, currentContent)
+	if err != nil {
+		return "", fmt.Errorf("EDIT_DIFF_GENERATION_ERROR: failed to generate diff: %w", err)
+	}
+
+	// Atomic write
+	tmpFile, err := os.CreateTemp(filepath.Dir(multiEditInput.FilePath), "multiedit-temp-*.tmp")
+	if err != nil {
+		return "", fmt.Errorf("EDIT_TEMP_FILE_CREATE_ERROR: failed to create temporary file: %w", err)
+	}
+	tmpFilePath := tmpFile.Name()
+	defer os.Remove(tmpFilePath) // Clean up temp file on exit
+
+	_, err = tmpFile.WriteString(currentContent)
+	if err != nil {
+		tmpFile.Close()
+		return "", fmt.Errorf("EDIT_TEMP_FILE_WRITE_ERROR: failed to write to temporary file: %w", err)
+	}
+	tmpFile.Close()
+
+	err = os.Rename(tmpFilePath, multiEditInput.FilePath)
+	if err != nil {
+		return "", fmt.Errorf("EDIT_FILE_RENAME_ERROR: failed to rename temporary file to target: %w", err)
+	}
+
+	return fmt.Sprintf(`{"message": "Successfully performed multi-edit on file: %s (%d total replacement(s)).", "actual_replacements": %d, "diff": %s}`, multiEditInput.FilePath, totalReplacements, totalReplacements, strconv.Quote(diff)), nil
 }
