@@ -73,10 +73,26 @@ If the file specified with path doesn't exist, it will be created.`,
 			InputSchema: GenerateSchema[AppendFileInput](),
 			Handler:     fileOps.AppendFile,
 		},
+		{
+			Name:        "write_file",
+			Description: "Overwrites the entire content of a file or creates a new file. Fails if the path refers to an existing directory.",
+			InputSchema: GenerateSchema[WriteFileInput](),
+			Handler:     (&WriteFileTool{}).ExecuteJSON,
+		},
 	}
 }
 
+// NewWriteFileToolHandler creates a handler for the write_file tool.
+func NewWriteFileToolHandler() *WriteFileTool {
+	return &WriteFileTool{}
+}
+
 // Input structs for file operations
+type WriteFileInput struct {
+	Path    string `json:"path" jsonschema_description:"The path to the file."`
+	Content string `json:"content" jsonschema_description:"The content to write to the file."`
+}
+
 type ReadFileInput struct {
 	Path string `json:"path" jsonschema_description:"The relative path of a file in the working directory."`
 }
