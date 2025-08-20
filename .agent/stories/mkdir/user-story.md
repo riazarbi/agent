@@ -4,7 +4,7 @@ The agent currently lacks a direct and efficient way to create directories. This
 
 ## Past Attempts
 
-N/A - This is a new feature set.
+- The cp tool was recently implemented. COnsider using it as a reference implementation. 
 
 ## Requirements
 
