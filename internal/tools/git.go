@@ -23,10 +23,10 @@ func NewGitTools() []Tool {
 			Handler:     ops.GitDiff,
 		},
 		{
-			Name:        "grep",
+			Name:        "rg",
 			Description: "Search for patterns in files using ripgrep. Supports both literal and regex patterns.",
-			InputSchema: GenerateSchema[GrepInput](),
-			Handler:     ops.Grep,
+			InputSchema: GenerateSchema[RgInput](),
+			Handler:     ops.Rg,
 		},
 		{
 			Name:        "glob",
@@ -42,7 +42,7 @@ type GitDiffInput struct {
 	// This tool takes no parameters
 }
 
-type GrepInput struct {
+type RgInput struct {
 	Pattern string `json:"pattern" jsonschema_description:"The search pattern to look for (literal or regex)"`
 	Args    string `json:"args,omitempty" jsonschema_description:"Optional ripgrep arguments as space-separated string (e.g. '--ignore-case --hidden')"`
 }
@@ -81,24 +81,24 @@ func (g *GitOperations) GitDiff(input json.RawMessage) (string, error) {
 	return stdout.String(), nil
 }
 
-// Grep searches for patterns in files using ripgrep
-func (g *GitOperations) Grep(input json.RawMessage) (string, error) {
-	grepInput := GrepInput{}
-	err := json.Unmarshal(input, &grepInput)
+// Rg searches for patterns in files using ripgrep
+func (g *GitOperations) Rg(input json.RawMessage) (string, error) {
+	rgInput := RgInput{}
+	err := json.Unmarshal(input, &rgInput)
 	if err != nil {
 		return "", err
 	}
 
-	if grepInput.Pattern == "" {
+	if rgInput.Pattern == "" {
 		return "", fmt.Errorf("search pattern cannot be empty")
 	}
 
 	// Start with base command and pattern
-	args := []string{grepInput.Pattern}
+	args := []string{rgInput.Pattern}
 
 	// Parse space-separated args string if provided
-	if grepInput.Args != "" {
-		parsedArgs := strings.Fields(grepInput.Args)
+	if rgInput.Args != "" {
+		parsedArgs := strings.Fields(rgInput.Args)
 		args = append(args, parsedArgs...)
 	}
 

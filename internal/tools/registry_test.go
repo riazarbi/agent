@@ -348,7 +348,7 @@ func TestRegistry_registerDefaultTools(t *testing.T) {
 
 	// Git tools
 	assert.Contains(t, names, "git_diff")
-	assert.Contains(t, names, "grep")
+	assert.Contains(t, names, "rg")
 	assert.Contains(t, names, "glob")
 }
 

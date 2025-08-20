@@ -102,7 +102,7 @@ type DeleteFileInput struct {
 	Path string `json:"path" jsonschema_description:"The relative path of the file to delete"`
 }
 
-type GrepInput struct {
+type RgInput struct {
 	Pattern string `json:"pattern" jsonschema_description:"The search pattern to look for (literal or regex)"`
 	Args    string `json:"args,omitempty" jsonschema_description:"Optional ripgrep arguments as space-separated string (e.g. '--ignore-case --hidden')"`
 }
@@ -166,7 +166,7 @@ var ListFilesInputSchema = GenerateSchema[tools.ListFilesInput]()
 
 var EditFileInputSchema = GenerateSchema[EditFileInput]()
 var DeleteFileInputSchema = GenerateSchema[DeleteFileInput]()
-var GrepInputSchema = GenerateSchema[GrepInput]()
+var RgInputSchema = GenerateSchema[RgInput]()
 var GlobInputSchema = GenerateSchema[GlobInput]()
 var GitDiffInputSchema = GenerateSchema[GitDiffInput]()
 var HeadInputSchema = GenerateSchema[HeadInput]()
@@ -209,11 +209,11 @@ var DeleteFileDefinition = ToolDefinition{
 	Function:    DeleteFile,
 }
 
-var GrepDefinition = ToolDefinition{
-	Name:        "grep",
+var RgDefinition = ToolDefinition{
+	Name:        "rg",
 	Description: "Search for patterns in files using ripgrep. Supports both literal and regex patterns.",
-	InputSchema: GrepInputSchema,
-	Function:    Grep,
+	InputSchema: RgInputSchema,
+	Function:    Rg,
 }
 
 var GlobDefinition = ToolDefinition{
@@ -1072,23 +1072,23 @@ func checkAndOfferAgentInit() error {
 	return nil
 }
 
-func Grep(input json.RawMessage) (string, error) {
-	grepInput := GrepInput{}
-	err := json.Unmarshal(input, &grepInput)
+func Rg(input json.RawMessage) (string, error) {
+	rgInput := RgInput{}
+	err := json.Unmarshal(input, &rgInput)
 	if err != nil {
 		return "", err
 	}
 
-	if grepInput.Pattern == "" {
+	if rgInput.Pattern == "" {
 		return "", fmt.Errorf("search pattern cannot be empty")
 	}
 
 	// Start with base command and pattern
-	args := []string{grepInput.Pattern}
+	args := []string{rgInput.Pattern}
 
 	// Parse space-separated args string if provided
-	if grepInput.Args != "" {
-		parsedArgs := strings.Fields(grepInput.Args)
+	if rgInput.Args != "" {
+		parsedArgs := strings.Fields(rgInput.Args)
 		args = append(args, parsedArgs...)
 	}
 

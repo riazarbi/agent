@@ -93,7 +93,7 @@ validate_no_api_mocking() {
     )
     
     for pattern in "${mock_patterns[@]}"; do
-        if grep -r "$pattern" --include="*_test.go" .; then
+        if rg -r "$pattern" --include="*_test.go" .; then
             error "Potential API mocking found (pattern: $pattern). Use real APIs with skip logic instead."
         fi
     done
@@ -180,7 +180,7 @@ validate_test_isolation() {
     )
     
     for pattern in "${shared_state_patterns[@]}"; do
-        if grep -r "$pattern" --include="*_test.go" .; then
+        if rg -r "$pattern" --include="*_test.go" .; then
             warning "Potential shared state found (pattern: $pattern)"
         fi
     done
