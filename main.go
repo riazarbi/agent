@@ -98,10 +98,6 @@ type EditFileInput struct {
 	ExpectedReplacements *int   `json:"expected_replacements,omitempty" jsonschema_description:"Optional: The expected number of replacements. If actual replacements differ, an error is returned."`
 }
 
-type DeleteFileInput struct {
-	Path string `json:"path" jsonschema_description:"The relative path of the file to delete"`
-}
-
 type RgInput struct {
 	Pattern string `json:"pattern" jsonschema_description:"The search pattern to look for (literal or regex)"`
 	Args    string `json:"args,omitempty" jsonschema_description:"Optional ripgrep arguments as space-separated string (e.g. '--ignore-case --hidden')"`
@@ -165,7 +161,6 @@ var ReadFileInputSchema = GenerateSchema[ReadFileInput]()
 var ListFilesInputSchema = GenerateSchema[tools.ListFilesInput]()
 
 var EditFileInputSchema = GenerateSchema[EditFileInput]()
-var DeleteFileInputSchema = GenerateSchema[DeleteFileInput]()
 var RgInputSchema = GenerateSchema[RgInput]()
 var GlobInputSchema = GenerateSchema[GlobInput]()
 var GitDiffInputSchema = GenerateSchema[GitDiffInput]()
@@ -202,12 +197,6 @@ If the file specified with path doesn't exist, it will be created.
 	Function:    EditFile,
 }
 
-var DeleteFileDefinition = ToolDefinition{
-	Name:        "delete_file",
-	Description: "Delete a file at the given relative path. Use with caution as this operation cannot be undone.",
-	InputSchema: DeleteFileInputSchema,
-	Function:    DeleteFile,
-}
 
 var RgDefinition = ToolDefinition{
 	Name:        "rg",
@@ -966,27 +955,6 @@ func generateDiff(filePath, oldContent, newContent string) (string, error) {
 	return text, nil
 }
 
-func DeleteFile(input json.RawMessage) (string, error) {
-	deleteFileInput := DeleteFileInput{}
-	err := json.Unmarshal(input, &deleteFileInput)
-	if err != nil {
-		return "", err
-	}
-
-	if deleteFileInput.Path == "" {
-		return "", fmt.Errorf("path cannot be empty")
-	}
-
-	err = os.Remove(deleteFileInput.Path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", fmt.Errorf("file does not exist: %s", deleteFileInput.Path)
-		}
-		return "", fmt.Errorf("failed to delete file: %w", err)
-	}
-
-	return fmt.Sprintf("Successfully deleted file %s", deleteFileInput.Path), nil
-}
 
 // copyTemplates copies the embedded templates to the .agent directory
 func copyTemplates() error {

@@ -2,7 +2,6 @@
 
 ## Implement the following tools: 
 - [x] edit_file	Modify existing files
-- [x] delete_file	Modify existing files
 - [x] list_files	List directory contents
 - [x] read_file	Read file contents
 - [ ] touch

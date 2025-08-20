@@ -42,12 +42,7 @@ If the file specified with path doesn't exist, it will be created.`,
 			InputSchema: GenerateSchema[EditFileInput](),
 			Handler:     fileOps.EditFile,
 		},
-		{
-			Name:        "delete_file",
-			Description: "Delete a file at the given relative path. Use with caution as this operation cannot be undone.",
-			InputSchema: GenerateSchema[DeleteFileInput](),
-			Handler:     fileOps.DeleteFile,
-		},
+
 		{
 			Name:        "head",
 			Description: "Show first N lines of a file (default 10 lines). Useful for quickly inspecting the beginning of files without reading the entire content.",
@@ -90,10 +85,6 @@ type EditFileInput struct {
 type AppendFileInput struct {
 	Path    string `json:"path" jsonschema_description:"The path to the file"`
 	Content string `json:"content" jsonschema_description:"Content to append or write to the file"`
-}
-
-type DeleteFileInput struct {
-	Path string `json:"path" jsonschema_description:"The relative path of the file to delete."`
 }
 
 type HeadInput struct {
@@ -216,28 +207,6 @@ func (f *FileOperations) EditFile(input json.RawMessage) (string, error) {
 	}
 
 	return fmt.Sprintf(`{"message": "Successfully modified file: %s (%d replacement(s)).", "actual_replacements": %d, "diff": %s}`, editFileInput.Path, count, count, strconv.Quote(diff)), nil
-}
-
-func (f *FileOperations) DeleteFile(input json.RawMessage) (string, error) {
-	deleteFileInput := DeleteFileInput{}
-	err := json.Unmarshal(input, &deleteFileInput)
-	if err != nil {
-		return "", err
-	}
-
-	if deleteFileInput.Path == "" {
-		return "", fmt.Errorf("path cannot be empty")
-	}
-
-	err = os.Remove(deleteFileInput.Path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", fmt.Errorf("file does not exist: %s", deleteFileInput.Path)
-		}
-		return "", fmt.Errorf("failed to delete file: %w", err)
-	}
-
-	return fmt.Sprintf("Successfully deleted file %s", deleteFileInput.Path), nil
 }
 
 // Helper methods for EditFile

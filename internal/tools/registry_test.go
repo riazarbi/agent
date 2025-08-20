@@ -241,7 +241,6 @@ func TestRegistry_List(t *testing.T) {
 
 	assert.Contains(t, toolNames, "read_file")
 	assert.Contains(t, toolNames, "edit_file")
-	assert.Contains(t, toolNames, "delete_file")
 }
 
 func TestRegistry_Names(t *testing.T) {
@@ -340,7 +339,6 @@ func TestRegistry_registerDefaultTools(t *testing.T) {
 	// File tools
 	assert.Contains(t, names, "read_file")
 	assert.Contains(t, names, "edit_file")
-	assert.Contains(t, names, "delete_file")
 
 	// Web tools
 	assert.Contains(t, names, "web_fetch")

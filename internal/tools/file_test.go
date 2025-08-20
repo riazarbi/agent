@@ -241,77 +241,6 @@ func TestFileOperations_EditFile_InvalidJSON(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid input")
 }
 
-func TestFileOperations_DeleteFile(t *testing.T) {
-	tests := []struct {
-		name    string
-		setup   func(t *testing.T) string
-		input   DeleteFileInput
-		wantErr bool
-	}{
-		{
-			name: "delete existing file",
-			setup: func(t *testing.T) string {
-				return helpers.TempFileWithName(t, "delete.txt", "content")
-			},
-			input:   DeleteFileInput{},
-			wantErr: false,
-		},
-		{
-			name: "delete non-existent file",
-			setup: func(t *testing.T) string {
-				dir := helpers.TempDir(t)
-				return filepath.Join(dir, "nonexistent.txt")
-			},
-			input:   DeleteFileInput{},
-			wantErr: true,
-		},
-		{
-			name: "empty path",
-			setup: func(t *testing.T) string {
-				return ""
-			},
-			input: DeleteFileInput{
-				Path: "",
-			},
-			wantErr: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			f := &FileOperations{}
-			filePath := tt.setup(t)
-			if tt.input.Path == "" && filePath != "" {
-				tt.input.Path = filePath
-			}
-
-			inputBytes, err := json.Marshal(tt.input)
-			require.NoError(t, err)
-
-			result, err := f.DeleteFile(json.RawMessage(inputBytes))
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				return
-			}
-
-			assert.NoError(t, err)
-			assert.Contains(t, result, "Successfully deleted file")
-
-			// Verify file no longer exists
-			_, err = os.Stat(tt.input.Path)
-			assert.True(t, os.IsNotExist(err))
-		})
-	}
-}
-
-func TestFileOperations_DeleteFile_InvalidJSON(t *testing.T) {
-	f := &FileOperations{}
-
-	result, err := f.DeleteFile(json.RawMessage("invalid json"))
-	assert.Error(t, err)
-	assert.Empty(t, result)
-}
 
 func TestFileOperations_Head(t *testing.T) {
 	// Create a test file with multiple lines
@@ -500,10 +429,10 @@ func TestNewFileTools(t *testing.T) {
 	tools := NewFileTools()
 
 	// Verify we have the expected number of tools
-	assert.Len(t, tools, 7)
+	assert.Len(t, tools, 6)
 
 	// Verify tool names
-	expectedNames := []string{"read_file", "edit_file", "delete_file", "append_file", "head", "tail", "cloc"}
+	expectedNames := []string{"read_file", "edit_file", "append_file", "head", "tail", "cloc"}
 	var actualNames []string
 	for _, tool := range tools {
 		actualNames = append(actualNames, tool.Name)
