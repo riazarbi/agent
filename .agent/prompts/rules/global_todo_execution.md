@@ -1,10 +1,17 @@
-# TODO Execution Rules
+# Global TODO Execution Rules
 
-## Workflow for Executing TODO Items
+todowrite and todoread are for managing todo lists inside a session. These tools are not accessible in future sessions. 
 
-When working with TODO lists (TODO.md files), always follow this execution workflow:
+Sometimes, major tasks can only be accomplished across multiple sessions. In these cases, it is necessary to use .agent/TODO.md. 
 
-1. **Execute the specified task**
+## Structuring TODO.md Items
+
+## Workflow for Executing global TODO Items
+
+When working with global TODO lists (TODO.md files), always follow this execution workflow:
+
+0. Review the current state of the TODO list and select the appropriate task to execute.
+1. **Execute the selected task**
 2. **Implement this task in THE SIMPLEST WAY POSSIBLE**
 3. **Run the quality checks**:
    - Provide examples or actions for the user to take to manually verify completion
