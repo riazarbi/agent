@@ -38,7 +38,7 @@ type FileSystemTool interface {
 
 ## Testing Considerations
 
-**YOU CANNOT TEST THESE NEW TOOLS, A NEW BINARY MUST BE BUILT FIRST. PROVIDE THE USER WITH INSTRUCTIONS FOR TESTING**
+**YOU CANNOT TEST THESE NEW TOOLS, A NEW BINARY MUST BE BUILT FIRST. WRITE INSTRUCTIONS FOR TESTING TO A FILE CALLED check.tct, OVERWRITING PREVIOUS CONTENT**
 
 
 *   **Integration Tests:** For the `mkdir` tool, integration tests are crucial. These should:

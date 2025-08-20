@@ -50,6 +50,8 @@ interface MultiEditOperation {
 
 ## Testing Considerations
 
+**YOU CANNOT TEST THESE NEW TOOLS, A NEW BINARY MUST BE BUILT FIRST. WRITE INSTRUCTIONS FOR TESTING TO A FILE CALLED check.tct, OVERWRITING PREVIOUS CONTENT**
+
 - **Unit Tests:**
     - Test individual edit operations (success, no match, old_string == new_string).
     - Test sequential application of edits.
