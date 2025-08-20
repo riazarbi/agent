@@ -14,6 +14,10 @@ When you receive the user story:
 5. Validate your implementation meets the requirements
 6. Report on completion status
 
+**ALWAYS FIRST FORMULATE A PLAN FIRST, BROKEN DOWN INTO DISCRETE STEPS**
+**SAVE THAT PLAN AS A SERIES OF TASKS USING TODOWRITE AND TODOREAD**
+
+
 Guidelines:
 - Write working, testable code
 - Ask questions only if critical information is missing

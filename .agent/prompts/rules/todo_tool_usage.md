@@ -10,10 +10,10 @@
 
 ## Core Principles
 
-1. **Proactive Task Management:** Use todo tools when tasks become complex or multi-step
-2. **Real-time Progress Tracking:** Update todos immediately as work progresses  
-3. **Single Focus:** Only one task should be "in_progress" at any time
-4. **Clear Distinction:** Micro todos (session) vs macro todos (TODO.md file)
+3. **Proactive Task Management:** Use todo tools when tasks become complex or multi-step
+4. **Real-time Progress Tracking:** Update todos immediately as work progresses  
+5. **Single Focus:** Only one task should be "in_progress" at any time
+6. **Clear Distinction:** Micro todos (session) vs macro todos (TODO.md file)
 
 ## When to Use Todo Tools
 
