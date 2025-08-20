@@ -68,6 +68,12 @@ These tools behave similarly to standard GNU/Linux commands. Users (agents or hu
 *   **Usage:** `mkdir(args="<arguments>")`
 *   **Example:** To create a directory `new_dir`, use `mkdir(args="new_dir")`
 
+### `task`
+
+*   **Purpose:** Run taskfile commands.
+*   **Usage:** `task(args="<arguments>")`
+*   **Example:** To run the default task, use `task(args="")`. To run a specific task like `build`, use `task(args="build")`.
+
 ## Agent-Specific Tools
 
 These tools have custom functionalities or significant deviations from standard command-line tools. They require more detailed, explicit documentation as they are unique to the agent's environment.
