@@ -6,6 +6,7 @@
 
 **Your job is not to infer what should go into the template. Your job is to elicit from the user what should go into the template**
 
+**DO NOT WRITE CODE. WRITE A USER STORY**
 
 **Terminate with helpful feedback if the story:**
 - Is too vague or scope is too broad
