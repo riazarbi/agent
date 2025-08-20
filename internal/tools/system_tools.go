@@ -107,6 +107,21 @@ var RegisteredSystemTools = []SystemTool{
 			"required": []string{"args"},
 		},
 	},
+	{
+		Name:    "find",
+		Command: "find",
+		Description: "Searches for files and directories in a directory hierarchy.",
+		ArgsSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"args": map[string]any{
+					"type": "string",
+					"description": "Arguments to pass to the find command (e.g., \". -name *.txt\")",
+				},
+			},
+			"required": []string{"args"},
+		},
+	},
 }
 
 // NewSystemTools creates a slice of Tool objects from RegisteredSystemTools.
