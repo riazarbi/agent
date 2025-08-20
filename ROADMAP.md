@@ -47,3 +47,4 @@
 
 - [ ] Implement retry or backoff for too many requests or other API errors. 
 - [ ] Parametrise model as well since it differs across backends
+- [ ] Clarify use of session todo vs global todo
