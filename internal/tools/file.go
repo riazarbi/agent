@@ -66,6 +66,12 @@ If the file specified with path doesn't exist, it will be created.`,
 			InputSchema: GenerateSchema[ClocInput](),
 			Handler:     fileOps.Cloc,
 		},
+		{
+			Name:        "list_files",
+			Description: "List files and directories at a given path. If no path is provided, lists files in the current directory.",
+			InputSchema: GenerateSchema[ListFilesInput](),
+			Handler:     fileOps.ListFiles,
+		},
 	}
 }
 
@@ -95,6 +101,10 @@ type TailInput struct {
 
 type ClocInput struct {
 	Args string `json:"args,omitempty" jsonschema_description:"Optional cloc arguments as space-separated string (e.g. '--exclude-dir=.git path')"`
+}
+
+type ListFilesInput struct {
+	Path string `json:"path,omitempty" jsonschema_description:"Optional relative path to list files from. Defaults to current directory if not provided."`
 }
 
 // File operation implementations
@@ -450,4 +460,54 @@ func (f *FileOperations) Cloc(input json.RawMessage) (string, error) {
 	}
 
 	return stdout.String(), nil
+}
+
+// ListFiles lists files and directories at a given path
+func (f *FileOperations) ListFiles(input json.RawMessage) (string, error) {
+	var listFilesInput ListFilesInput
+	if err := json.Unmarshal(input, &listFilesInput); err != nil {
+		return "", fmt.Errorf("invalid input: %v", err)
+	}
+
+	dir := "."
+	if listFilesInput.Path != "" {
+		dir = listFilesInput.Path
+	}
+
+	var files []string
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+
+		// Skip .git and .agent/prompts directories
+		if info.IsDir() && (relPath == ".git" || strings.HasPrefix(relPath, ".git/") || relPath == ".agent/prompts" || strings.HasPrefix(relPath, ".agent/prompts/") || relPath == ".agent/sessions" || strings.HasPrefix(relPath, ".agent/sessions/")) {
+			return filepath.SkipDir
+		}
+
+		if relPath != "." {
+			if info.IsDir() {
+				files = append(files, relPath+"/")
+			} else {
+				files = append(files, relPath)
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	result, err := json.Marshal(files)
+	if err != nil {
+		return "", err
+	}
+
+	return string(result), nil
 }

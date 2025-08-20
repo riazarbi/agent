@@ -33,6 +33,7 @@ import (
 	"agent/internal/config"
 	"agent/internal/editcorrector"
 	"agent/internal/errors"
+	"agent/internal/session"
 	internaltools "agent/internal/tools"
 	"agent/tools"
 )
@@ -48,6 +49,7 @@ var (
 	currentSessionID      string          // Set at startup: "2024-12-19-14-30-45"
 	currentSessionDir     string          // Derived: ".agent/sessions/[currentSessionID]/"
 	currentSessionManager *SessionManager // Global reference to current session manager
+	internalSessionMgr    session.SessionManager // Internal session manager for todo operations
 )
 
 // Core types
@@ -510,8 +512,15 @@ func main() {
 
 // Constructor
 func NewAgent(client *openai.Client, getUserMessage func() (string, bool), baseURL string, rl *readline.Instance, prePrompts []string, requestDelay time.Duration, cfg *config.Config) *Agent {
-	// Initialize tool registry with all available tools (no session dependencies for now)
-	registry := internaltools.NewRegistry(nil)
+	// Initialize tool registry with session dependencies if available
+	var registryConfig *internaltools.RegistryConfig
+	if internalSessionMgr != nil && currentSessionID != "" {
+		registryConfig = &internaltools.RegistryConfig{
+			SessionManager:   internalSessionMgr,
+			CurrentSessionID: currentSessionID,
+		}
+	}
+	registry := internaltools.NewRegistry(registryConfig)
 
 	return &Agent{
 		client:         client,
@@ -1620,6 +1629,12 @@ func initializeSession(resumeSessionID string) (*SessionManager, error) {
 
 	// Set global reference
 	currentSessionManager = sessionManager
+
+	// Initialize internal session manager for todo operations
+	sessionManagerConfig := session.Config{
+		SessionsDir: ".agent/sessions",
+	}
+	internalSessionMgr = session.NewManager(sessionManagerConfig)
 
 	return sessionManager, nil
 }
