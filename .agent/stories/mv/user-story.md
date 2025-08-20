@@ -38,6 +38,9 @@ type FileSystemTool interface {
 
 ## Testing Considerations
 
+**YOU CANNOT TEST THESE NEW TOOLS, A NEW BINARY MUST BE BUILT FIRST. PROVIDE THE USER WITH INSTRUCTIONS FOR TESTING**
+
+
 *   **Integration Tests:** For the `mv` tool, integration tests are crucial. These should:
     *   Run against a real file system.
     *   Verify the exact behavior for all described requirements.

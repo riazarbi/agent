@@ -6,6 +6,8 @@ The agent currently lacks a direct and efficient way to copy files and directori
 
 N/A - This is a new feature set.
 
+the append_file tool was implemented before yours, do not mess with that code.
+
 ## Requirements
 
 *   **Implement `cp` tool:**
@@ -39,6 +41,8 @@ type FileSystemTool interface {
 *   Error messages for shelling out tools should capture the underlying system command's `stderr` as accurately as possible to ensure fidelity.
 
 ## Testing Considerations
+
+**YOU CANNOT TEST THESE NEW TOOLS, A NEW BINARY MUST BE BUILT FIRST. PROVIDE THE USER WITH INSTRUCTIONS FOR TESTING**
 
 *   **Integration Tests:** For the `cp` tool, integration tests are crucial. These should:
     *   Run against a real file system.

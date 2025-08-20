@@ -87,6 +87,11 @@ type EditFileInput struct {
 	ExpectedReplacements *int   `json:"expected_replacements,omitempty" jsonschema_description:"Optional: The expected number of replacements. If actual replacements differ, an error is returned."`
 }
 
+type AppendFileInput struct {
+	Path    string `json:"path" jsonschema_description:"The path to the file"`
+	Content string `json:"content" jsonschema_description:"Content to append or write to the file"`
+}
+
 type DeleteFileInput struct {
 	Path string `json:"path" jsonschema_description:"The relative path of the file to delete."`
 }
@@ -510,4 +515,34 @@ func (f *FileOperations) ListFiles(input json.RawMessage) (string, error) {
 	}
 
 	return string(result), nil
+}
+
+func (f *FileOperations) AppendFile(input json.RawMessage) (string, error) {
+	appendFileInput := AppendFileInput{}
+	err := json.Unmarshal(input, &appendFileInput)
+	if err != nil {
+		return "", fmt.Errorf("invalid input: %w", err)
+	}
+
+	if appendFileInput.Path == "" {
+		return "", fmt.Errorf("path cannot be empty")
+	}
+
+	fileInfo, err := os.Stat(appendFileInput.Path)
+	if err == nil && fileInfo.IsDir() {
+		return "", fmt.Errorf("Is a directory: '%s'", appendFileInput.Path)
+	}
+
+	file, err := os.OpenFile(appendFileInput.Path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return "", fmt.Errorf("failed to open/create file: %w", err)
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(appendFileInput.Content)
+	if err != nil {
+		return "", fmt.Errorf("failed to append content to file: %w", err)
+	}
+
+	return fmt.Sprintf(`{"message": "Successfully appended to '%s'."}`, appendFileInput.Path), nil
 }

@@ -36,6 +36,9 @@ type FileSystemTool interface {
 
 ## Testing Considerations
 
+**YOU CANNOT TEST THESE NEW TOOLS, A NEW BINARY MUST BE BUILT FIRST. PROVIDE THE USER WITH INSTRUCTIONS FOR TESTING**
+
+
 *   **Unit Tests:** For `append_file` (native Go implementation), unit tests should cover:
     *   Successful creation of a new file with content.
     *   Successful appending to an existing file.

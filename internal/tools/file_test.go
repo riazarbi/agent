@@ -500,10 +500,10 @@ func TestNewFileTools(t *testing.T) {
 	tools := NewFileTools()
 
 	// Verify we have the expected number of tools
-	assert.Len(t, tools, 6)
+	assert.Len(t, tools, 7)
 
 	// Verify tool names
-	expectedNames := []string{"read_file", "edit_file", "delete_file", "head", "tail", "cloc"}
+	expectedNames := []string{"read_file", "edit_file", "delete_file", "append_file", "head", "tail", "cloc"}
 	var actualNames []string
 	for _, tool := range tools {
 		actualNames = append(actualNames, tool.Name)
@@ -568,4 +568,100 @@ func TestFileOperations_createNewFileAtomic(t *testing.T) {
 // Helper function to create int pointer
 func intPtr(i int) *int {
 	return &i
+}
+
+func TestFileOperations_AppendFile(t *testing.T) {
+	tests := []struct {
+		name        string
+		setup       func(t *testing.T) string // Returns file path or dir path
+		input       AppendFileInput
+		wantErr     bool
+		wantContent string // Expected content of the file after operation
+		wantMsg     string // Expected message in success/error output
+	}{
+		{
+			name: "create new file with content",
+			setup: func(t *testing.T) string {
+				dir := helpers.TempDir(t)
+				return filepath.Join(dir, "new_log.txt")
+			},
+			input: AppendFileInput{
+				Content: "First log entry.\n",
+			},
+			wantErr:     false,
+			wantContent: "First log entry.\n",
+			wantMsg:     "Successfully appended to 'new_log.txt'.",
+		},
+		{
+			name: "append to existing file",
+			setup: func(t *testing.T) string {
+				return helpers.TempFileWithName(t, "existing_log.txt", "First log entry.\n")
+			},
+			input: AppendFileInput{
+				Content: "Second log entry.\n",
+			},
+			wantErr:     false,
+			wantContent: "First log entry.\nSecond log entry.\n",
+			wantMsg:     "Successfully appended to 'existing_log.txt'.",
+		},
+		{
+			name: "fail on path being a directory",
+			setup: func(t *testing.T) string {
+				return helpers.TempDir(t) // Returns path to a directory
+			},
+			input: AppendFileInput{
+				Content: "Some content",
+			},
+			wantErr: true,
+			wantMsg: "Is a directory",
+		},
+		{
+			name: "empty path",
+			setup: func(t *testing.T) string {
+				return ""
+			},
+			input: AppendFileInput{
+				Path:    "",
+				Content: "Some content",
+			},
+			wantErr: true,
+			wantMsg: "path cannot be empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &FileOperations{}
+			filePath := tt.setup(t)
+			tt.input.Path = filePath
+
+			inputBytes, err := json.Marshal(tt.input)
+			require.NoError(t, err)
+
+			result, err := f.AppendFile(json.RawMessage(inputBytes))
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantMsg)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Contains(t, result, tt.wantMsg)
+
+			// Verify file content
+			content, readErr := os.ReadFile(filePath)
+			assert.NoError(t, readErr)
+			assert.Equal(t, tt.wantContent, string(content))
+		})
+	}
+}
+
+func TestFileOperations_AppendFile_InvalidJSON(t *testing.T) {
+	f := &FileOperations{}
+
+	result, err := f.AppendFile(json.RawMessage("invalid json"))
+	assert.Error(t, err)
+	assert.Empty(t, result)
+	assert.Contains(t, err.Error(), "invalid input")
 }
