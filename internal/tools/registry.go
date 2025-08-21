@@ -48,6 +48,9 @@ func (r *Registry) registerDefaultTools(config *RegistryConfig) {
 	if config != nil && config.SessionManager != nil && config.CurrentSessionID != "" {
 		r.Register(NewTodoTools(config.SessionManager, config.CurrentSessionID)...)
 	}
+
+	// Register command tools if Taskfile exists
+	r.Register(NewCommandTools()...)
 }
 
 // Register adds one or more tools to the registry

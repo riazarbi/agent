@@ -34,17 +34,20 @@ tasks:
   test:
     desc: Run all tests with race detection
     cmds:
-      - echo "pass"
+      - go test -short -race ./...
 
   test-verbose:
     desc: Run all tests with verbose output
     cmds:
-      - echo "pass all"
+      - go test -v -race ./...
 
   test-coverage:
     desc: Generate test coverage report
     cmds:
-      - echo "pass all 100% coverage"
+      - mkdir -p {{.COVERAGE_DIR}}
+      - go test -coverprofile={{.COVERAGE_DIR}}/coverage.out ./...
+      - go tool cover -html={{.COVERAGE_DIR}}/coverage.out -o {{.COVERAGE_DIR}}/coverage.html
+      - echo "Coverage report generated at {{.COVERAGE_DIR}}/coverage.html"
 
   lint:
     desc: Run golangci-lint
