@@ -78,6 +78,21 @@ var RegisteredSystemTools = []SystemTool{
 		},
 	},
 	{
+		Name:    "sed",
+		Command: "sed",
+		Description: "Stream editor for filtering and transforming text. Useful for find and replace operations.",
+		ArgsSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"args": map[string]any{
+					"type": "string",
+					"description": "Arguments to pass to the sed command (e.g., '-i 's/old/new/g' file.txt')",
+				},
+			},
+			"required": []string{"args"},
+		},
+	},
+	{
 		Name:    "cp",
 		Command: "cp",
 		Description: "Copies files and directories.",

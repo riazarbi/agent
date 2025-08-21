@@ -83,7 +83,7 @@ read_file(path="config.js")
 **When facing tool selection decisions:**
 - For file size unknown: Use `head`, `tail`, `cloc` to understand scope first
 - For pattern searching: `rg` (ripgrep) is often most efficient
-- For complex file modifications: `multi_edit` for atomic multi-change operations
+- For file modifications: try `sed` first. If that fails, try `multi_edit` for atomic multi-change operations or `edit_file` for single change operations.
 - For exploration: Simple passthrough tools + `rg` often sufficient
 
 ## Exceptions & Waivers
@@ -128,3 +128,4 @@ read_file(path="config.js")
 
 **Quick Decision Guide:**
 When in doubt: Use the tool and see what it actually shows rather than making assumptions
+- **RULE-204:** It is highly encouraged to run `xc(args="")` early in a session to discover available commands, as `xc` is the primary tool for common CI/CD operations like build, test, and lint.

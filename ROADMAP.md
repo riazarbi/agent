@@ -36,6 +36,8 @@
 - [ ] Configurable .agent directory location
 - [ ] Allow multiline paste
 - [ ] Autocomplete for file paths
+- [ ] Track token cost -> maybe generalise to logging everything
+- [ ] Anthropic Oauth
 
 ## Tech Debt
 

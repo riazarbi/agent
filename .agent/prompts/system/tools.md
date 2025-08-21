@@ -84,6 +84,20 @@ These tools behave similarly to standard GNU/Linux commands. Users (agents or hu
     *   It is highly recommended to run `xc` with no arguments (e.g., `xc(args="")`) early in a session to discover all available tasks.
 *   **Example:** To list available tasks, use `xc(args="")`. To run a task named `build`, use `xc(args="build")`.
 
+### `sed`
+
+*   **Purpose:** Stream editor for filtering and transforming text. Useful for find and replace operations.
+*   **Usage:** `sed(args="<arguments>")`
+*   **Notes:**
+    *   Common `sed` commands for file editing:
+        *   Replace all occurrences: `sed -i 's/old_string/new_string/g' filename.py`
+        *   Replace only the first occurrence on each line: `sed -i 's/old_string/new_string/' filename.py`
+        *   Replace the first occurrence on a specific line (e.g., line 1): `sed -i '1s/old_string/new_string/' filename.py`
+        *   Replace all occurrences within a line range (e.g., lines 1-10): `sed -i '1,10s/old_string/new_string/g' filename.py`
+    *   Important Note for MacOS Users: When using `sed -i` on MacOS, you need to provide an empty string for the backup extension. For all the above examples, use `sed -i ''` instead of `sed -i`. Example for MacOS: `sed -i '' 's/old_string/new_string/g' filename.py`
+    *   `sed` can also be used to view specific lines of a file. View specific lines with numbers (e.g., lines 10-20): `nl -ba filename.py | sed -n '10,20p'`
+*   **Example:** To replace all occurrences of `old_string` with `new_string` in `filename.py`, use `sed(args="-i 's/old_string/new_string/g' filename.py")`
+
 ## Agent-Specific Tools
 
 These tools have custom functionalities or significant deviations from standard command-line tools. They require more detailed, explicit documentation as they are unique to the agent's environment.
@@ -124,7 +138,8 @@ These tools have custom functionalities or significant deviations from standard 
 *   **Notes:**
     *   The file path is relative to the current directory.
     *   Content is added to the end of the file.
-*   **Example:** To append a new line to `log.txt`, use `append_file(content="New log entry.\n", path="log.txt")`
+*   **Example:** To append a new line to `log.txt`, use `append_file(content="New log entry.
+", path="log.txt")`
 
 ### `edit_file`
 
@@ -156,7 +171,9 @@ These tools have custom functionalities or significant deviations from standard 
     default_api.edit_file(
         path="new_feature/README.md",
         old_str="",
-        new_str="# New Feature\n\nThis is a new feature."
+        new_str="# New Feature
+
+This is a new feature."
     )
     ```
 
@@ -190,7 +207,12 @@ These tools have custom functionalities or significant deviations from standard 
     default_api.multi_edit(
         file_path="new_project/main.go",
         edits=[
-            default_api.MultiEditEdits(old_string='''''', new_string='''package main\n\nfunc main() {\n\t// Initial content\n}\n'''),
+            default_api.MultiEditEdits(old_string='''''', new_string='''package main
+
+func main() {
+	// Initial content
+}
+'''),
             default_api.MultiEditEdits(old_string='''// Initial content''', new_string='''// Updated content with a new line''')
         ]
     )
@@ -297,9 +319,3 @@ These tools have custom functionalities or significant deviations from standard 
     *   **Critical for development workflows**: Use after code changes to verify builds and tests pass.
     *   Commands execute with 5-minute timeout for safety.
 *   **Example:** `run_command(command="build")` to build the project, or `run_command(command="test", args="-v")` to run tests with verbose output
-
-### `sed`
-
-*   **Purpose:** Stream editor for filtering and transforming text. Useful for find and replace operations.
-*   **Usage:** `sed(args="<arguments>")`
-*   **Example:** To replace all occurrences of `old_string` with `new_string` in `filename.py`, use `sed(args="-i 's/old_string/new_string/g' filename.py")`
