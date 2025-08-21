@@ -29,6 +29,18 @@ Requires: hello
 echo world
 ```
 
+### clean
+Clean the cache and build artefacts
+Env: BINARY_NAME=agent
+Env: BUILD_DIR=bin
+Env: COVERAGE_DIR=coverage
+```sh
+rm -rf $BUILD_DIR/$BINARY_NAME
+rm -rf .agent/cache/webfetch
+rm -rf $COVERAGE_DIR
+```
+
+
 ### build
 Build the agent binary
 Env: BINARY_NAME=agent
