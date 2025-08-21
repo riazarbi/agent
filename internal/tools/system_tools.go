@@ -137,6 +137,21 @@ var RegisteredSystemTools = []SystemTool{
 			"required": []string{"args"},
 		},
 	},
+	{
+		Name:    "xc",
+		Command: "xc",
+		Description: "Run xc commands.",
+		ArgsSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"args": map[string]any{
+					"type": "string",
+					"description": "Arguments to pass to the xc command (e.g., 'build' or '')",
+				},
+			},
+			"required": []string{"args"},
+		},
+	},
 }
 
 // NewSystemTools creates a slice of Tool objects from RegisteredSystemTools.
@@ -164,7 +179,13 @@ func createSystemToolHandler(command string) func(input json.RawMessage) (string
 			return "", fmt.Errorf("invalid input for %s: %w", command, err)
 		}
 
-		cmd := exec.Command(command, splitArgs(args.Args)...)
+        var allArgs []string
+        if command == "xc" {
+                allArgs = append(allArgs, "-no-tty") // Always add -no-tty for xc
+        }
+        allArgs = append(allArgs, splitArgs(args.Args)...) // Add user-provided arguments
+
+        cmd := exec.Command(command, allArgs...) // Use the combined arguments
 
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
