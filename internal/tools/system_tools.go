@@ -18,6 +18,20 @@ type SystemTool struct {
 // RegisteredSystemTools is a collection of system tools to be registered dynamically.
 var RegisteredSystemTools = []SystemTool{
 	{
+		Name:    "uname",
+		Command: "uname",
+		Description: "Returns the operating system name.",
+		ArgsSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"args": map[string]any{
+					"type": "string",
+					"description": "Optional arguments to pass to the uname command (e.g., '-s' for operating system name)",
+				},
+			},
+		},
+	},
+	{
 		Name:    "mv",
 		Command: "mv",
 		Description: "Moves or renames files or directories.",
