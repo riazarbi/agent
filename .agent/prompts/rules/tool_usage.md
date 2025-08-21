@@ -83,7 +83,7 @@ read_file(path="config.js")
 **When facing tool selection decisions:**
 - For file size unknown: Use `head`, `tail`, `cloc` to understand scope first
 - For pattern searching: `rg` (ripgrep) is often most efficient
-- For file modifications: try `sed` first. If that fails, try `multi_edit` for atomic multi-change operations or `edit_file` for single change operations.
+- For file modifications: try `sed` first. Always use `uname` to determine how to use `sed`. If `sed` fails, try `multi_edit` for atomic multi-change operations or `edit_file` for single change operations.
 - For exploration: Simple passthrough tools + `rg` often sufficient
 
 ## Exceptions & Waivers

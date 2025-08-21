@@ -28,7 +28,7 @@ These tools behave similarly to standard GNU/Linux commands. Users (agents or hu
 
 ### `cloc`
 
-*   **Purpose:** Count lines of code with language breakdown and statistics.
+*   **Purpose:** Count lines of code with language breakdown and statistics. Use cloc to determine the characteristics of the project you are working on.
 *   **Usage:** `cloc(args="<optional_arguments>")`
 *   **Example:** To count lines of code in the current directory, use `cloc(args=".")`
 
@@ -88,9 +88,18 @@ These tools behave similarly to standard GNU/Linux commands. Users (agents or hu
         *   Replace only the first occurrence on each line: `sed -i 's/old_string/new_string/' filename.py`
         *   Replace the first occurrence on a specific line (e.g., line 1): `sed -i '1s/old_string/new_string/' filename.py`
         *   Replace all occurrences within a line range (e.g., lines 1-10): `sed -i '1,10s/old_string/new_string/g' filename.py`
-    *   **Important Note for MacOS Users**: When using `sed -i` on MacOS, you need to provide an empty string for the backup extension. For all the above examples, use `sed -i ''` instead of `sed -i`. Example for MacOS: `sed -i '' 's/old_string/new_string/g' filename.py`
+    *   **Important Note for MacOS / darwin Users**: When using `sed -i` on MacOS, you need to provide an empty string for the backup extension. For all the above examples, use `sed -i ''` instead of `sed -i`. Example for MacOS: `sed -i '' 's/old_string/new_string/g' filename.py`
     *   `sed` can also be used to view specific lines of a file. View specific lines with numbers (e.g., lines 10-20): `nl -ba filename.py | sed -n '10,20p'`
 *   **Example:** To replace all occurrences of `old_string` with `new_string` in `filename.py` (in-place), use `sed(args="-i '' s/old_string/new_string/g filename.py")`. Note: When using `-i ''` for in-place edits, do not wrap the `s/old/new/g` command in additional single quotes within the `args` string.
+
+### `uname`
+
+*   **Purpose:** Use uname to determine the operating system you are running on.
+*   **Usage:** `uname(args="<arguments>")`
+*   **Notes:**
+    *   Use uname to determine how you should be structuring sed arguments
+*   **Example:** You can use uname(args="-u") to determine the operating system you are running on.
+
 
 ## Agent-Specific Tools
 

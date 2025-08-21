@@ -111,7 +111,9 @@ modify_code()
 
 ## Command Configuration
 
-Commands are defined in `README.md` using a format compatible with `xc`. For full documentation on defining commands, refer to the [xcfile.dev](https://xcfile.dev) website:
+Commands are defined in `README.md` using a format compatible with `xc`. For full documentation on defining commands, refer to the [xcfile.dev](https://xcfile.dev) website.
+
+The task specifications can be found at https://github.com/joerdav/xc/tree/main/doc/content/task-syntax.
 
 --- BEGIN EXAMPLE ---
 

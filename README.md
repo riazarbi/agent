@@ -39,6 +39,13 @@ mkdir -p $BUILD_DIR
 go build -o $BUILD_DIR/$BINARY_NAME ./cmd/agent
 ```
 
+### test
+Test the package
+Inputs: ARGS
+```sh
+go test $ARGS
+```
+
 ### dev
 Run the agent in development mode
 Env: BINARY_NAME=agent
