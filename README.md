@@ -29,13 +29,25 @@ rm -rf .agent/cache/webfetch
 rm -rf $COVERAGE_DIR
 ```
 
+### tidy
+Run go mod tidy
+```sh
+go mod tidy
+```
+
+### verify
+Run go mod verify
+requires: tidy
+```sh
+go mod tidy
+```
 
 ### build
 Build the agent binary
+requires: verify
 Env: BINARY_NAME=agent
 Env: BUILD_DIR=bin
 ```sh
-go mod tidy
 mkdir -p $BUILD_DIR
 go build -o $BUILD_DIR/$BINARY_NAME ./cmd/agent
 ```
@@ -50,6 +62,7 @@ go test -v ./...
 
 ### test-coverage
 Generate a test coverage report
+requires: build
 ```sh
 go test -coverprofile=coverage.out ./...
 ```
