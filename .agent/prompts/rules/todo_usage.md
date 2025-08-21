@@ -11,18 +11,17 @@
 ## Core Principles
 
 1. **Plan Before Execute:** Always evaluate instructions and create todos for non-trivial tasks before starting work
-2. **Proactive Task Management:** Default to using todos - only skip for genuinely trivial operations
-3. **Single Focus:** Only one task should be "in_progress" at any time to maintain clear execution context
-4. **Real-time Tracking:** Update todo status immediately as work progresses, never batch updates
-5. **Clear Distinction:** Micro todos (session-scoped) serve different purposes than macro todos (project-level TODO.md files)
+2. **Single Focus:** Only one task should be "in_progress" at any time to maintain clear execution context
+3. **Real-time Tracking:** Update todo status immediately as work progresses, never batch updates
+4. **Clear Distinction:** Micro todos (session-scoped) serve different purposes than macro todos (project-level TODO.md files)
 
 ## Rules
 
 ### Must Have (Critical)
 
 - **RULE-001:** ALWAYS pause to evaluate any instruction - if it cannot be done trivially, create todos BEFORE starting work
-- **RULE-002:** Only ONE task can have status "in_progress" at any given time
-- **RULE-003:** Always update todo status immediately after completing or changing tasks - never batch updates
+- **RULE-002:** Before acting or creating a todo list, form a plan.
+- **RULE-003:** Only ONE task can have status "in_progress" at any given time
 - **RULE-004:** Use todoread before reporting progress to ensure accuracy
 
 ### Should Have (Important)
@@ -99,7 +98,7 @@ todowrite({...})           // ❌ Too late!
 **MANDATORY EVALUATION PROCESS:**
 Before starting ANY task, ask these questions in order:
 
-1. **Can this be done in 1-2 trivial steps?** (e.g., read a single file, answer a simple question)
+1. **Can this be done in 1-4 trivial steps?** (e.g., read a single file, answer a simple question)
    - If YES → Proceed without todos
    - If NO → MUST create todos before starting
 
@@ -157,7 +156,6 @@ Before starting ANY task, ask these questions in order:
 
 **Key Principles:**
 - ALWAYS evaluate instructions before starting work
-- Default to using todos unless task is genuinely trivial (1-2 simple steps)
 - Plan before execute - todos first, then work
 - Over-planning is better than under-planning
 
