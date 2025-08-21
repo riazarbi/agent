@@ -182,7 +182,7 @@ func (a *Agent) RunInference(ctx context.Context, conversation []openai.ChatComp
 	}
 
 	completion, err := a.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Model:     "gemini-2.5-flash",
+		Model:     "gemini-2.5-pro",
 		MaxTokens: openai.Int(8192),
 		Messages:  conversation,
 		Tools:     toolsToUse,
