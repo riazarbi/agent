@@ -22,7 +22,7 @@
 - **RULE-001:** Always run `xc build` after making any code changes to verify compilation
 - **RULE-002:** Always run `xc test` after code changes to verify functionality still works
 - **RULE-003:** Use `xc(args="")` regularly to discover available commands, as they can be added/removed during sessions
-- **RULE-004:** NEVER modify .agent/Taskfile.yml - this is a protected configuration file that defines available commands
+- **RULE-004:** NEVER modify .agent/Taskfile.yml - this is a protected configuration file that defines available xc commands
 
 ### Should Have (Important)
 
@@ -86,10 +86,10 @@ modify_code()
 - Non-development tasks (reading/analyzing existing code, explanations)
 - Documentation-only changes that don't affect code execution
 - Information gathering or code review activities
-- No `.agent/Taskfile.yml` exists (commands not available)
+- No `README.md` exists (xc commands not available)
 
 **NEVER modify these protected files:**
-- `.agent/Taskfile.yml` - Command definitions (user/admin controlled)
+- `README.md` - Command definitions (user/admin controlled)
 - Commands are configured by users/administrators, not agents
 
 **Process for exceptions:**
@@ -111,39 +111,24 @@ modify_code()
 
 ## Command Configuration
 
-Commands are defined in `.agent/Taskfile.yml` using the [Task](https://taskfile.dev/) format:
+Commands are defined in `README.md` using a format compatible with `xc`. For full documentation on defining commands, refer to the [xcfile.dev](https://xcfile.dev) website:
 
-```yaml
-version: '3'
+--- BEGIN EXAMPLE ---
 
-tasks:
-  build:
-    desc: "Build the project binary"
-    cmds:
-      - go build -o bin/app ./cmd/app
+## Tasks
 
-  test:
-    desc: "Run all tests with race detection" 
-    cmds:
-      - go test -race ./...
+### deploy
 
-  test-verbose:
-    desc: "Run tests with verbose output and custom flags"
-    cmds:
-      - go test {{.CLI_ARGS}} ./...
+Requires: test
+Directory: ./deployment
+Env: ENVIRONMENT=STAGING
 
-  lint:
-    desc: "Run golangci-lint for code quality"
-    cmds:
-      - golangci-lint run
+```
+sh deploy.sh
 ```
 
-**Key Requirements:**
-- Commands **must** have a `desc` field to be discoverable
-- Use `{{.CLI_ARGS}}` to accept arguments from `xc`
-- Commands without descriptions are considered internal and hidden
+--- END EXAMPLE ---
 
----
 
 ## TL;DR
 
@@ -154,10 +139,10 @@ tasks:
 - Check available commands regularly (they can change during sessions)
 
 **Critical Rules:**
-- Must run `build` command after code changes
-- Must run `test` command after code changes  
+- Must run `xc build` command after code changes
+- Must run `xc test` command after code changes
 - Must use `xc(args="")` regularly to discover current available options (commands are dynamic)
-- NEVER modify .agent/Taskfile.yml - it's protected configuration
+- NEVER modify README.md - it's protected configuration
 
 **Quick Decision Guide:**
 When in doubt: If you modified code, run build and test commands to verify it works
