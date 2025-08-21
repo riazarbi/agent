@@ -17,17 +17,6 @@ export ANTHROPIC_API_KEY="your-api-key-here"  # Falls back to this if AGENT_API_
 ```
 
 ## Tasks
-### hello
-Prints hello
-```sh
-echo hello
-```
-### world
-Prints world
-Requires: hello
-```sh
-echo world
-```
 
 ### clean
 Clean the cache and build artefacts
@@ -56,6 +45,12 @@ Test the package
 Inputs: ARGS
 ```sh
 go test $ARGS
+```
+
+### test-coverage
+Generate a test coverage report
+```sh
+go test -coverprofile=coverage.out ./...
 ```
 
 ### dev
