@@ -205,13 +205,16 @@ func getPrePrompts(prePromptsPath string) ([]string, error) {
 		return nil, fmt.Errorf("reading preprompts file: %w", err)
 	}
 
-	// Split by lines and filter out empty ones
 	lines := strings.Split(string(content), "\n")
 	var prompts []string
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line != "" && !strings.HasPrefix(line, "#") {
-			prompts = append(prompts, line)
+	for _, path := range lines {
+		path = strings.TrimSpace(path)
+		if path != "" && !strings.HasPrefix(path, "#") {
+			promptContent, err := os.ReadFile(path)
+			if err != nil {
+				return nil, fmt.Errorf("reading prompt file '%s': %w", path, err)
+			}
+			prompts = append(prompts, string(promptContent))
 		}
 	}
 

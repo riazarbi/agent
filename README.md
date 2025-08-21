@@ -42,9 +42,10 @@ go build -o $BUILD_DIR/$BINARY_NAME ./cmd/agent
 
 ### test
 Test the package
-Inputs: ARGS
+requires: build
 ```sh
-go test $ARGS
+export OPENAI_API_KEY="dummy-api-key"
+go test -v ./...
 ```
 
 ### test-coverage

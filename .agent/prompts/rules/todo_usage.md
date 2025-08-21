@@ -20,7 +20,7 @@
 
 ### Must Have (Critical)
 
-- **RULE-001:** ALWAYS pause to evaluate any instruction - if it cannot be done trivially (in 1-2 simple steps), create todos BEFORE starting work
+- **RULE-001:** ALWAYS pause to evaluate any instruction - if it cannot be done trivially, create todos BEFORE starting work
 - **RULE-002:** Only ONE task can have status "in_progress" at any given time
 - **RULE-003:** Always update todo status immediately after completing or changing tasks - never batch updates
 - **RULE-004:** Use todoread before reporting progress to ensure accuracy

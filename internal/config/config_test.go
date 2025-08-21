@@ -15,6 +15,7 @@ func TestLoad(t *testing.T) {
 		envVars     map[string]string
 		expectError bool
 		expected    *Config
+		expectedErrorMessage string
 	}{
 		{
 			name: "default config with API key",
@@ -84,6 +85,8 @@ func TestLoad(t *testing.T) {
 				// No API key set
 			},
 			expectError: true,
+			expected: nil,
+			expectedErrorMessage: "AGENT_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY environment variable must be set",
 		},
 	}
 
@@ -101,6 +104,7 @@ func TestLoad(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErrorMessage)
 				return
 			}
 
@@ -155,6 +159,7 @@ func clearEnvVars() {
 	envVars := []string{
 		"AGENT_API_KEY",
 		"ANTHROPIC_API_KEY",
+		"OPENAI_API_KEY",
 		"AGENT_BASE_URL",
 		"AGENT_SESSION_DIR",
 		"AGENT_PREPROMPTS",
