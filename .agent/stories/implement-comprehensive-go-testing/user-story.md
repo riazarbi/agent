@@ -6,12 +6,15 @@
 
 If this user story has been attempted before, the changes made will appear in the git diff. Our policy is to only make a single commit per user story, so you can always review the git diff to review progress across attempts. 
 
-
 ## Requirements
 
 *Specific, measurable acceptance criteria. These define when the story is complete.*
 
-- The executor MUST create a `PROGRESSS.md` file in the root of the project to outline the detailed, fine-grained plan for implementing tests. This file MUST be updated frequently to reflect progress and enable seamless continuation if the task is interrupted or transferred.
+
+- The executor MUST create a `PROGRESS.md` file in the root of the project to outline the detailed, fine-grained plan for implementing tests IF IT DOES NOT EXIST. 
+- If `PROGRESS.md` exists, resume the plan.
+This file MUST be updated frequently to reflect progress and enable seamless continuation if the task is interrupted or transferred.
+- The executor MUST make use of todoread and todowrite to keep track of subtasks.
 - Comprehensive unit tests MUST be implemented for the following high-priority files, ensuring all critical functions and logic are covered:
     - `cmd/agent/main.go`
     - `internal/agent/agent.go`

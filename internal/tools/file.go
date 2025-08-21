@@ -497,7 +497,7 @@ func (f *FileOperations) ListFiles(input json.RawMessage) (string, error) {
 		}
 
 		// Skip .git and .agent/prompts directories
-		if info.IsDir() && (relPath == ".git" || strings.HasPrefix(relPath, ".git/") || relPath == ".agent/prompts" || strings.HasPrefix(relPath, ".agent/prompts/") || relPath == ".agent/sessions" || strings.HasPrefix(relPath, ".agent/sessions/")) {
+		if info.IsDir() && (relPath == ".git" || strings.HasPrefix(relPath, ".git/") || relPath == ".agent/" || strings.HasPrefix(relPath, ".agent")) {
 			return filepath.SkipDir
 		}
 

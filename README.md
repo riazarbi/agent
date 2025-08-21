@@ -56,8 +56,8 @@ go build -o $BUILD_DIR/$BINARY_NAME ./cmd/agent
 Test the package
 requires: build
 ```sh
-export OPENAI_API_KEY="dummy-api-key"
-go test -v ./...
+
+go test -v -timeout 30s ./...
 ```
 
 ### test-coverage
