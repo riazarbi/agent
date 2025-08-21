@@ -108,7 +108,7 @@ read_file(path="config.js")
 ## Related Rules
 
 - `rules/todo_usage.md` - Governs task breakdown and progress tracking
-- `rules/commands_usage.md` - Governs development workflow verification tools
+- `rules/commands_usage.md` - Governs user-defined command execution for development workflows
 
 ---
 
@@ -128,4 +128,3 @@ read_file(path="config.js")
 
 **Quick Decision Guide:**
 When in doubt: Use the tool and see what it actually shows rather than making assumptions
-- **RULE-204:** It is highly encouraged to run `xc(args="")` early in a session to discover available commands, as `xc` is the primary tool for common CI/CD operations like build, test, and lint.

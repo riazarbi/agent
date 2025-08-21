@@ -138,21 +138,6 @@ var RegisteredSystemTools = []SystemTool{
 		},
 	},
 	{
-		Name:    "task",
-		Command: "task",
-		Description: "Run taskfile commands.",
-		ArgsSchema: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"args": map[string]any{
-					"type": "string",
-					"description": "Arguments to pass to the task command (e.g., 'build' or '')",
-				},
-			},
-			"required": []string{"args"},
-		},
-	},
-	{
 		Name:    "xc",
 		Command: "xc",
 		Description: "Run xc commands.",
@@ -167,7 +152,7 @@ var RegisteredSystemTools = []SystemTool{
 			"required": []string{"args"},
 		},
 	},
-}
+} // Closing bracket for RegisteredSystemTools
 
 // NewSystemTools creates a slice of Tool objects from RegisteredSystemTools.
 func NewSystemTools() []Tool {

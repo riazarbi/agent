@@ -16,31 +16,34 @@ export AGENT_API_KEY="your-api-key-here"      # Primary API key setting
 export ANTHROPIC_API_KEY="your-api-key-here"  # Falls back to this if AGENT_API_KEY is not set
 ```
 
-2. Install dependencies:
-```bash
+## Tasks
+### hello
+Prints hello
+```sh
+echo hello
+```
+### world
+Prints world
+Requires: hello
+```sh
+echo world
+```
+
+### build
+Build the agent binary
+Env: BINARY_NAME=agent
+Env: BUILD_DIR=bin
+```sh
 go mod tidy
+mkdir -p $BUILD_DIR
+go build -o $BUILD_DIR/$BINARY_NAME ./cmd/agent
 ```
 
-## Build
-
-Create a binary:
-```bash
-go build -o agent
-```
-
-Run the binary in interactive mode:
-```bash
-./agent
-```
-
-Run with a prompt file (single-shot mode):
-```bash
-./agent -f prompt-file.txt
-# or
-./agent --prompt-file prompt-file.txt
-```
-
-Or run directly without building:
-```bash
-go run main.go
+### dev
+Run the agent in development mode
+Env: BINARY_NAME=agent
+Env: BUILD_DIR=bin
+Env: CLI_ARGS=-help
+```sh
+./$BUILD_DIR/$BINARY_NAME $CLI_ARGS
 ```

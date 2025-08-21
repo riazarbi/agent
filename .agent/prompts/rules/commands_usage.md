@@ -1,6 +1,6 @@
 # Commands Usage Rules
 
-*Rules for using list_commands and run_command tools for development workflow automation. Governs when and how to execute development commands (build, test, lint) to verify code works after changes. Commands are dynamically loaded from .agent/Taskfile.yml and can change during sessions.*
+*Rules for using `xc` as the primary tool for user-defined command execution and development workflow automation. Governs when and how to execute development commands (build, test, lint) to verify code works after changes. Commands are dynamically loaded from .agent/Taskfile.yml and can change during sessions.*
 
 ## Context
 
@@ -19,16 +19,16 @@
 
 ### Must Have (Critical)
 
-- **RULE-001:** Always run `build` command after making any code changes to verify compilation
-- **RULE-002:** Always run `test` command after code changes to verify functionality still works
-- **RULE-003:** Use `list_commands()` regularly to discover available commands, as they can be added/removed during sessions
+- **RULE-001:** Always run `xc build` after making any code changes to verify compilation
+- **RULE-002:** Always run `xc test` after code changes to verify functionality still works
+- **RULE-003:** Use `xc(args="")` regularly to discover available commands, as they can be added/removed during sessions
 - **RULE-004:** NEVER modify .agent/Taskfile.yml - this is a protected configuration file that defines available commands
 
 ### Should Have (Important)
 
-- **RULE-101:** Run `lint` or quality commands when available to maintain code standards
-- **RULE-102:** Use commands before declaring development tasks complete
-- **RULE-103:** Parse command output to understand and report failures clearly to users
+- **RULE-101:** Run `xc lint` or other quality commands when available to maintain code standards
+- **RULE-102:** Use `xc` commands before declaring development tasks complete
+- **RULE-103:** Parse `xc` command output to understand and report failures clearly to users
 
 ### Could Have (Preferred)
 
@@ -43,16 +43,16 @@
 ```javascript
 // Good: Standard development verification workflow
 // 1. Discover current available commands (they change dynamically)
-list_commands()
+xc(args="")
 
 // 2. After making code changes - verify it builds  
-run_command({"command": "build"})
+xc(args="build")
 
 // 3. Run tests to ensure functionality works
-run_command({"command": "test"})
+xc(args="test")
 
 // 4. Check code quality if available
-run_command({"command": "lint"})
+xc(args="lint")
 ```
 
 ### ❌ Don't Do This
@@ -74,11 +74,11 @@ modify_code()
 4. Will user expect functionality to be working? → Verify with commands
 
 **Command selection decision tree:**
-1. **Always**: `list_commands()` regularly to discover current available options (commands are dynamic)
-2. **Code Changes**: `build` → `test` → `lint` progression
-3. **Bug Fixes**: Focus on `test` (possibly with specific test selection args)
-4. **New Features**: Full `build` → `test` → `lint` verification
-5. **Refactoring**: Comprehensive `build` → `test` → `lint` to ensure no regressions
+1. **Always**: `xc(args="")` regularly to discover current available options (commands are dynamic)
+2. **Code Changes**: `xc build` → `xc test` → `xc lint` progression
+3. **Bug Fixes**: Focus on `xc test` (possibly with specific test selection args)
+4. **New Features**: Full `xc build` → `xc test` → `xc lint` verification
+5. **Refactoring**: Comprehensive `xc build` → `xc test` → `xc lint` to ensure no regressions
 
 ## Exceptions & Waivers
 
@@ -140,7 +140,7 @@ tasks:
 
 **Key Requirements:**
 - Commands **must** have a `desc` field to be discoverable
-- Use `{{.CLI_ARGS}}` to accept arguments from `run_command`
+- Use `{{.CLI_ARGS}}` to accept arguments from `xc`
 - Commands without descriptions are considered internal and hidden
 
 ---
@@ -156,7 +156,7 @@ tasks:
 **Critical Rules:**
 - Must run `build` command after code changes
 - Must run `test` command after code changes  
-- Must use `list_commands()` regularly to discover current available options (commands are dynamic)
+- Must use `xc(args="")` regularly to discover current available options (commands are dynamic)
 - NEVER modify .agent/Taskfile.yml - it's protected configuration
 
 **Quick Decision Guide:**

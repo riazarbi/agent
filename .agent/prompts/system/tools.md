@@ -68,12 +68,6 @@ These tools behave similarly to standard GNU/Linux commands. Users (agents or hu
 *   **Usage:** `mkdir(args="<arguments>")`
 *   **Example:** To create a directory `new_dir`, use `mkdir(args="new_dir")`
 
-### `task`
-
-*   **Purpose:** Run taskfile commands.
-*   **Usage:** `task(args="<arguments>")`
-*   **Example:** To run the default task, use `task(args="")`. To run a specific task like `build`, use `task(args="build")`.
-
 ### `xc`
 
 *   **Purpose:** `xc` is a lightweight task runner (see [https://xcfile.dev](https://xcfile.dev)) that serves as the primary mechanism for executing common CI/CD operations (e.g., build, test, lint) within the project.
@@ -297,25 +291,3 @@ func main() {
     *   Provides a quick way to review planned and ongoing tasks.
 *   **Example:** To read the current todo list, use `todoread()`
 
-### `list_commands`
-
-*   **Purpose:** Lists all currently available development commands from .agent/Taskfile.yml for building, testing, and workflow automation. Commands are dynamically loaded and can change during sessions.
-*   **Usage:** `list_commands()`
-*   **Notes:**
-    *   This tool takes no parameters.
-    *   Returns JSON with commands array containing name and description for each command.
-    *   Only lists commands that have descriptions (internal commands are hidden).
-    *   **Important:** Commands can be added/removed during sessions, so list regularly to see current options.
-*   **Example:** `list_commands()` returns available commands like "build", "test", "lint"
-
-### `run_command`
-
-*   **Purpose:** Executes a development command from .agent/Taskfile.yml (e.g., build, test, lint) with optional arguments for code verification workflows. Commands are dynamic and loaded from current Taskfile.
-*   **Usage:** `run_command(command="<command_name>", args="<optional_args>")`
-*   **Notes:**
-    *   The command parameter specifies which command to run (must exist in Taskfile).
-    *   Optional args parameter passes arguments via {{.CLI_ARGS}} variable to the command.
-    *   Returns detailed output including stdout, stderr, and exit status.
-    *   **Critical for development workflows**: Use after code changes to verify builds and tests pass.
-    *   Commands execute with 5-minute timeout for safety.
-*   **Example:** `run_command(command="build")` to build the project, or `run_command(command="test", args="-v")` to run tests with verbose output

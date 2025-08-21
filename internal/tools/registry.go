@@ -50,7 +50,7 @@ func (r *Registry) registerDefaultTools(config *RegistryConfig) {
 	}
 
 	// Register command tools if Taskfile exists
-	r.Register(NewCommandTools()...)
+
 }
 
 // Register adds one or more tools to the registry
