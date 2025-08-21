@@ -74,6 +74,16 @@ These tools behave similarly to standard GNU/Linux commands. Users (agents or hu
 *   **Usage:** `task(args="<arguments>")`
 *   **Example:** To run the default task, use `task(args="")`. To run a specific task like `build`, use `task(args="build")`.
 
+### `xc`
+
+*   **Purpose:** `xc` is a lightweight task runner (see [https://xcfile.dev](https://xcfile.dev)) that serves as the primary mechanism for executing common CI/CD operations (e.g., build, test, lint) within the project.
+*   **Usage:** `xc(args="<task_name_and_optional_arguments>")`
+*   **Notes:**
+    *   The agent has been configured to automatically include the `-no-tty` flag when calling `xc` to ensure non-interactive execution suitable for automated environments. You do not need to specify `-no-tty` yourself.
+    *   For safety and to enforce intended usage, the arguments `-f` and `-file` are explicitly prohibited when calling `xc` via this tool. Attempts to use these arguments will result in an error.
+    *   It is highly recommended to run `xc` with no arguments (e.g., `xc(args="")`) early in a session to discover all available tasks.
+*   **Example:** To list available tasks, use `xc(args="")`. To run a task named `build`, use `xc(args="build")`.
+
 ## Agent-Specific Tools
 
 These tools have custom functionalities or significant deviations from standard command-line tools. They require more detailed, explicit documentation as they are unique to the agent's environment.
@@ -170,8 +180,8 @@ These tools have custom functionalities or significant deviations from standard 
     default_api.multi_edit(
         file_path="config/app.json",
         edits=[
-            default_api.MultiEditEdits(old_string='"debug": false', new_string='"debug": true'),
-            default_api.MultiEditEdits(old_string='version: "1.0"', new_string='version: "2.0"')
+            default_api.MultiEditEdits(old_string='''"debug": false''', new_string='''"debug": true'''),
+            default_api.MultiEditEdits(old_string='''version: "1.0"''', new_string='''version: "2.0"''')
         ]
     )
     ```
@@ -180,8 +190,8 @@ These tools have custom functionalities or significant deviations from standard 
     default_api.multi_edit(
         file_path="new_project/main.go",
         edits=[
-            default_api.MultiEditEdits(old_string='', new_string='package main\n\nfunc main() {\n\t// Initial content\n}\n'),
-            default_api.MultiEditEdits(old_string='// Initial content', new_string='// Updated content with a new line')
+            default_api.MultiEditEdits(old_string='''''', new_string='''package main\n\nfunc main() {\n\t// Initial content\n}\n'''),
+            default_api.MultiEditEdits(old_string='''// Initial content''', new_string='''// Updated content with a new line''')
         ]
     )
     ```
@@ -287,3 +297,9 @@ These tools have custom functionalities or significant deviations from standard 
     *   **Critical for development workflows**: Use after code changes to verify builds and tests pass.
     *   Commands execute with 5-minute timeout for safety.
 *   **Example:** `run_command(command="build")` to build the project, or `run_command(command="test", args="-v")` to run tests with verbose output
+
+### `sed`
+
+*   **Purpose:** Stream editor for filtering and transforming text. Useful for find and replace operations.
+*   **Usage:** `sed(args="<arguments>")`
+*   **Example:** To replace all occurrences of `old_string` with `new_string` in `filename.py`, use `sed(args="-i 's/old_string/new_string/g' filename.py")`
