@@ -170,37 +170,52 @@ func NewSystemTools() []Tool {
 }
 
 // createSystemToolHandler returns a Handler function for a given system command.
+// createSystemToolHandler returns a Handler function for a given system command.
 func createSystemToolHandler(command string) func(input json.RawMessage) (string, error) {
-	return func(input json.RawMessage) (string, error) {
-		var args struct {
-			Args string `json:"args"`
-		}
-		if err := json.Unmarshal(input, &args); err != nil {
-			return "", fmt.Errorf("invalid input for %s: %w", command, err)
-		}
+        return func(input json.RawMessage) (string, error) {
+                var args struct {
+                        Args string `json:"args"`
+                }
+                if err := json.Unmarshal(input, &args); err != nil {
+                        return "", fmt.Errorf("invalid input for %s: %w", command, err)
+                }
 
-        var allArgs []string
-        if command == "xc" {
-                allArgs = append(allArgs, "-no-tty") // Always add -no-tty for xc
+                // Split the user-provided arguments
+                userProvidedArgs := splitArgs(args.Args)
+
+                // Define forbidden arguments for 'xc' and enforce them
+                if command == "xc" {
+                        forbidden := map[string]bool{"-f": true, "-file": true} // Add more if needed
+                        for _, arg := range userProvidedArgs {
+                                if forbidden[arg] {
+                                        return "", fmt.Errorf("forbidden argument '%s' cannot be used with xc tool", arg)
+                                }
+                        }
+                }
+
+                // Prepare final arguments list, including -no-tty for xc (if you kept that modification)
+                var finalArgs []string
+                if command == "xc" {
+                        finalArgs = append(finalArgs, "-no-tty") // Keep this if you want -no-tty always
+                }
+                finalArgs = append(finalArgs, userProvidedArgs...) // Append user-provided arguments after validation
+
+                cmd := exec.Command(command, finalArgs...)
+
+                var stdout, stderr bytes.Buffer
+                cmd.Stdout = &stdout
+                cmd.Stderr = &stderr
+
+                err := cmd.Run()
+                if err != nil {
+                        return "", fmt.Errorf("error executing %s: %s (stderr: %s)", command, err, stderr.String())
+                }
+
+                if stderr.Len() > 0 {
+                        return stderr.String(), nil // Return stderr as output if present, even on success
+                }
+                return stdout.String(), nil
         }
-        allArgs = append(allArgs, splitArgs(args.Args)...) // Add user-provided arguments
-
-        cmd := exec.Command(command, allArgs...) // Use the combined arguments
-
-		var stdout, stderr bytes.Buffer
-		cmd.Stdout = &stdout
-		cmd.Stderr = &stderr
-
-		err := cmd.Run()
-		if err != nil {
-			return "", fmt.Errorf("error executing %s: %s (stderr: %s)", command, err, stderr.String())
-		}
-
-		if stderr.Len() > 0 {
-			return stderr.String(), nil // Return stderr as output if present, even on success
-		}
-		return stdout.String(), nil
-	}
 }
 
 // splitArgs splits a string of arguments into a slice,
