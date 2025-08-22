@@ -3,3 +3,4 @@ bin/agent
 agent.log
 .agent/sessions/*
 .agent/cache/*
+c.out
