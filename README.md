@@ -22,11 +22,11 @@ export ANTHROPIC_API_KEY="your-api-key-here"  # Falls back to this if AGENT_API_
 Clean the cache and build artefacts
 Env: BINARY_NAME=agent
 Env: BUILD_DIR=bin
-Env: COVERAGE_DIR=coverage
+Env: COVERAGE_FILE=c.out
 ```sh
 rm -rf $BUILD_DIR/$BINARY_NAME
 rm -rf .agent/cache/webfetch
-rm -rf $COVERAGE_DIR
+rm -rf $COVERAGE_FILE
 ```
 
 ### tidy
@@ -39,7 +39,50 @@ go mod tidy
 Run go mod verify
 requires: tidy
 ```sh
-go mod tidy
+go mod verify
+```
+
+### format
+Format the code
+```sh
+go fmt  ./cmd/agent
+```
+
+### test
+Test the package
+```sh
+go test -timeout 30s ./...
+```
+
+### test-verbose
+Test the package
+requires: build
+```sh
+go test -timeout 30s ./...
+```
+
+### test-coverage
+Generate a test coverage report
+requires: build
+```sh
+go test -coverprofile=c.out ./...
+go tool cover -func=c.out
+```
+
+### dev
+Run the agent in development mode. The agent will be built from the latest source.
+Inputs: CLI_ARGS
+Environment: CLI_ARGS=-help
+```sh
+go run ./cmd/agent $CLI_ARGS
+```
+
+### chat
+Pass a message to the agent in development mode. The agent will be built from the latest source.
+Inputs: MESSAGE
+Environment: MESSAGE=hello
+```sh
+$MESSAGE | go run ./cmd/agent 
 ```
 
 ### build
@@ -50,28 +93,4 @@ Env: BUILD_DIR=bin
 ```sh
 mkdir -p $BUILD_DIR
 go build -o $BUILD_DIR/$BINARY_NAME ./cmd/agent
-```
-
-### test
-Test the package
-requires: build
-```sh
-
-go test -v -timeout 30s ./...
-```
-
-### test-coverage
-Generate a test coverage report
-requires: build
-```sh
-go test -coverprofile=coverage.out ./...
-```
-
-### dev
-Run the agent in development mode
-Env: BINARY_NAME=agent
-Env: BUILD_DIR=bin
-Env: CLI_ARGS=-help
-```sh
-./$BUILD_DIR/$BINARY_NAME $CLI_ARGS
 ```
