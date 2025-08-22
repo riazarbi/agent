@@ -184,13 +184,20 @@ func loadPromptFile(path string) (string, error) {
 
 // getPrePrompts loads pre-prompts from file or returns empty slice
 func getPrePrompts(prePromptsPath string) ([]string, error) {
+	usingDefault := prePromptsPath == ""
 	if prePromptsPath == "" {
-		prePromptsPath = ".agent/prompts/preprompts.yml"
+		prePromptsPath = ".agent/prompts/preprompts"
 	}
 
 	// Check if file exists
 	if _, err := os.Stat(prePromptsPath); os.IsNotExist(err) {
-		return []string{}, nil
+		if usingDefault {
+			// Default file doesn't exist - that's OK, return empty
+			return []string{}, nil
+		} else {
+			// User specified a file that doesn't exist - that's an error
+			return nil, fmt.Errorf("preprompt file not found: %s", prePromptsPath)
+		}
 	}
 
 	// Check file extension to determine format
