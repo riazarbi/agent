@@ -31,7 +31,7 @@
 - [x] Add init command to create a hidden agent directory
 - [ ] Implement Taskfile-based tool calling for arbitrary, tightly scoped tool calls.
 - [x] Implement preprompt tooling
-- [ ] Add testing rules to prompts
+- [x] Add testing rules to prompts
 - [ ] Add manuals directory for tools and pep8 etc
 - [ ] Configurable .agent directory location
 - [ ] Allow multiline paste
@@ -48,5 +48,6 @@
 ## Nits
 
 - [ ] Implement retry or backoff for too many requests or other API errors. 
-- [ ] Parametrise model as well since it differs across backends
+- [x] Parametrise model as well since it differs across backends
 - [ ] Clarify use of session todo vs global todo
+- [x] Nonexistent preprompt file does not fail
