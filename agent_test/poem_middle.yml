@@ -1,0 +1,7 @@
+- message:
+    - text: "Now here's the second stanza from a YAML file with file inclusion:"
+- message:
+    - file: "stanza2.txt"
+- message:
+    - text: "The current date and time when this was processed:"
+    - command: "date"
