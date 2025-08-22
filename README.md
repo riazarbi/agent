@@ -1,3 +1,41 @@
+# Code Editing Agent
+
+## Usage
+
+```bash
+# Interactive mode
+./agent
+
+# Single prompt from file
+./agent --prompt path/to/prompt.md
+./agent --prompt path/to/prompt.yml
+
+# With preprompts (system instructions)
+./agent --preprompt path/to/system.yml
+
+# Help
+./agent -h
+```
+
+### Prompt Files
+
+Both `--prompt` and `--preprompt` support:
+- **Markdown files** (`.md`) - content used as single message
+- **YAML files** (`.yml`, `.yaml`) - structured prompt definitions with text, commands, and file includes
+
+**Path Resolution:**
+- Flag arguments: resolved relative to current working directory
+- YAML file includes: resolved relative to the YAML file's directory
+
+YAML format:
+```yaml
+- message:
+    - text: "Static text"
+    - command: "git status"    # Execute shell command
+    - file: "content.txt"      # Include file content
+- file: "other-prompts.yml"    # Include other YAML files
+```
+
 # Developing
 
 ## Setup
