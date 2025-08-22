@@ -19,6 +19,7 @@ type APIConfig struct {
 	Key     string
 	BaseURL string
 	Timeout time.Duration
+	Model   string
 }
 
 // AgentConfig holds agent behavior configuration
@@ -58,6 +59,7 @@ func Load() (*Config, error) {
 			Key:     apiKey,
 			BaseURL: getEnv("AGENT_BASE_URL", "https://api.anthropic.com/v1/"),
 			Timeout: 30 * time.Second, // Default timeout
+			Model:   getEnv("AGENT_MODEL", "claude-sonnet-4-20250514"),
 		},
 		Agent: AgentConfig{
 			RequestDelay:  0, // Will be set from flag

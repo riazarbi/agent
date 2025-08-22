@@ -182,7 +182,7 @@ func (a *Agent) RunInference(ctx context.Context, conversation []openai.ChatComp
 	}
 
 	completion, err := a.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Model:     "gemini-2.5-pro",
+		Model:     a.config.API.Model,
 		MaxTokens: openai.Int(8192),
 		Messages:  conversation,
 		Tools:     toolsToUse,
@@ -239,7 +239,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	}
 
 	if !a.singleShot || a.transitionToInteractive {
-		fmt.Printf("Chat with Agent at %s\n", a.config.API.BaseURL)
+		fmt.Printf("Chat with Agent %s at %s\n", a.config.API.Model, a.config.API.BaseURL)
 	}
 
 	readUserInput := true
