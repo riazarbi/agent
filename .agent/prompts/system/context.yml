@@ -1,0 +1,29 @@
+- text: | 
+    # Project Context
+    The following information is intended to give you context about your environment.
+
+    --- BEGIN CONTEXTUAL INFORMATION ---
+
+- text: "OPERATING SYSTEM:"
+  command: uname && uname -r
+
+- text: "LINE COUNT OF SOURCE CODE, COMMEntS AND BLANK LINES ACROSS FILE TYPES"
+  command: cloc --timeout=15 --exclude-dir=.agent .
+
+- text: |
+    XC COMMANDS AVAILABLE
+    xc is a task runner, like make, that runs tasks defined in markdown files.
+    The xc tool available to you runs against the README.md only.
+  command: xc -no-tty
+
+- text: "PROJECT FILE TREE"
+  command: tree
+
+- text: "README CONTENT"
+  file: README.md
+
+- text: "GIT DIFF"
+  command: echo "${$(git diff):-Git Diff Empty}"
+
+- text: | 
+    --- END CONTEXTUAL INFORMATION ---
