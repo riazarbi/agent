@@ -18,6 +18,10 @@ export ANTHROPIC_API_KEY="your-api-key-here"  # Falls back to this if AGENT_API_
 
 ## Tasks
 
+This section covers common continuous integration tasks that can be performed during code development. Tasks defined in this section must conform to the xc [task syntax](https://xcfile.dev/task-syntax/).
+
+See the [xc docs](https://xcfile.dev/getting-started/) for installation instructions
+
 ### clean
 Clean the cache and build artefacts
 Env: BINARY_NAME=agent

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -21,18 +22,18 @@ import (
 func main() {
 	// Parse command line flags
 	promptFile := flag.String("f", "", "Path to prompt file for single-shot mode")
-	flag.StringVar(promptFile, "prompt-file", "", "Path to prompt file for single-shot mode")
+	flag.StringVar(promptFile, "prompt", "", "Path to prompt file for single-shot mode")
 	continueChat := flag.Bool("continue", false, "Continue in interactive mode after processing prompt file")
 	timeout := flag.Int("timeout", 60, "Timeout in seconds for non-interactive mode")
 	initFlag := flag.Bool("init", false, "Initialize .agent directory")
-	prePrompts := flag.String("preprompts", "", "Path to preprompts file (defaults to .agent/prompts/preprompts)")
+	prePrompts := flag.String("preprompt", "", "Path to preprompt file (defaults to .agent/prompts/preprompts)")
 	resumeSession := flag.String("resume", "", "Resume a specific session by ID (YYYY-MM-DD-HH-MM-SS), or use 'list' to select interactively")
 	requestDelay := flag.Duration("request-delay", 0, "Delay between API requests (e.g., 2s, 500ms)")
 	flag.Parse()
 
 	// Validate flags
 	if *continueChat && *promptFile == "" {
-		fmt.Println("Error: --continue flag can only be used with --f/--prompt-file")
+		fmt.Println("Error: --continue flag can only be used with --f/--prompt")
 		os.Exit(1)
 	}
 
@@ -171,28 +172,20 @@ func main() {
 
 // loadPromptFile loads and validates the prompt file
 func loadPromptFile(path string) (string, error) {
-	const maxPromptSize = 1024 * 1024 // 1MB max
-
-	fileInfo, err := os.Stat(path)
+	messages, err := config.LoadPromptFile(path)
 	if err != nil {
-		return "", fmt.Errorf("accessing prompt file: %w", err)
+		return "", err
 	}
-	if fileInfo.Size() > maxPromptSize {
-		return "", fmt.Errorf("prompt file too large (max %d bytes)", maxPromptSize)
-	}
-
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("reading prompt file: %w", err)
-	}
-
-	return string(content), nil
+	
+	// For backward compatibility with single-shot mode, combine all messages
+	// TODO: Consider updating agent to handle multiple messages natively
+	return strings.Join(messages, "\n\n"), nil
 }
 
 // getPrePrompts loads pre-prompts from file or returns empty slice
 func getPrePrompts(prePromptsPath string) ([]string, error) {
 	if prePromptsPath == "" {
-		prePromptsPath = ".agent/prompts/preprompts"
+		prePromptsPath = ".agent/prompts/preprompts.yml"
 	}
 
 	// Check if file exists
@@ -200,6 +193,18 @@ func getPrePrompts(prePromptsPath string) ([]string, error) {
 		return []string{}, nil
 	}
 
+	// Check file extension to determine format
+	ext := strings.ToLower(filepath.Ext(prePromptsPath))
+	if ext == ".yml" || ext == ".yaml" || ext == ".md" {
+		// Use new LoadPromptFile function for YAML/markdown files
+		messages, err := config.LoadPromptFile(prePromptsPath)
+		if err != nil {
+			return nil, fmt.Errorf("loading preprompts: %w", err)
+		}
+		return messages, nil
+	}
+
+	// Handle legacy format (plain text file with list of paths)
 	content, err := os.ReadFile(prePromptsPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading preprompts file: %w", err)
@@ -210,11 +215,12 @@ func getPrePrompts(prePromptsPath string) ([]string, error) {
 	for _, path := range lines {
 		path = strings.TrimSpace(path)
 		if path != "" && !strings.HasPrefix(path, "#") {
-			promptContent, err := os.ReadFile(path)
+			// Use LoadPromptFile for each individual file to support both .md and .yml
+			messages, err := config.LoadPromptFile(path)
 			if err != nil {
-				return nil, fmt.Errorf("reading prompt file '%s': %w", path, err)
+				return nil, fmt.Errorf("loading prompt file '%s': %w", path, err)
 			}
-			prompts = append(prompts, string(promptContent))
+			prompts = append(prompts, messages...)
 		}
 	}
 

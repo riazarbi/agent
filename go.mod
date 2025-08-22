@@ -8,6 +8,7 @@ require (
 	github.com/invopop/jsonschema v0.13.0
 	github.com/openai/openai-go/v2 v2.1.1
 	github.com/pmezard/go-difflib v1.0.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -23,5 +24,4 @@ require (
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
