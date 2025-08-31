@@ -1,9 +1,0 @@
-- message:
-    - file: "poem_intro.md"
-- message:
-    - file: "stanza1.txt"
-- file: "poem_middle.yml"
-- file: "stanzas_3_and_4.yml" 
-- message:
-    - file: "poem_conclusion.md"
-    - text: "And this is the last sentence of my poem"
