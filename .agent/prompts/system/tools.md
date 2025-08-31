@@ -68,6 +68,12 @@ These tools behave similarly to standard GNU/Linux commands. Users (agents or hu
 *   **Usage:** `mkdir(args="<arguments>")`
 *   **Example:** To create a directory `new_dir`, use `mkdir(args="new_dir")`
 
+### `go`
+
+*   **Purpose:** Executes Go commands (e.g., run, build, test).
+*   **Usage:** `go(args="<arguments>")`
+*   **Example:** To run a Go program, use `go(args="run main.go")`. To run tests, use `go(args="test ./...")`.
+
 ### `xc`
 
 *   **Purpose:** `xc` is a lightweight task runner (see [https://xcfile.dev](https://xcfile.dev)) that serves as the primary mechanism for executing common CI/CD operations (e.g., build, test, lint) within the project.

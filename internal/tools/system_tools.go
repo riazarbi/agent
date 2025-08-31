@@ -152,6 +152,21 @@ var RegisteredSystemTools = []SystemTool{
 		},
 	},
 	{
+		Name:    "go",
+		Command: "go",
+		Description: "Executes Go commands (e.g., run, build, test).",
+		ArgsSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"args": map[string]any{
+					"type": "string",
+					"description": "Arguments to pass to the go command (e.g., 'run main.go' or 'test ./...')",
+				},
+			},
+			"required": []string{"args"},
+		},
+	},
+	{
 		Name:    "xc",
 		Command: "xc",
 		Description: "Run xc commands.",

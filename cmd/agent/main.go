@@ -176,7 +176,7 @@ func loadPromptFile(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	// For backward compatibility with single-shot mode, combine all messages
 	// TODO: Consider updating agent to handle multiple messages natively
 	return strings.Join(messages, "\n\n"), nil
