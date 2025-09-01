@@ -38,10 +38,10 @@ An ultra-lightweight Python command-line AI coding agent under 400 lines of code
 ### 3. User Experience
 
 #### Command-Line Interface
-- **Interactive Mode**: `python-agent` (default)
-- **Single-Shot**: `python-agent --prompt "task description"`
-- **File Input**: `python-agent --file path/to/prompt.txt`
-- **Session Resume**: `python-agent --resume SESSION_ID`
+- **Interactive Mode**: `agent` (default)
+- **Single-Shot**: `agent --prompt "task description"`
+- **File Input**: `agent --file path/to/prompt.txt`
+- **Session Resume**: `agent --resume SESSION_ID`
 
 #### Output
 - Plain text output only
