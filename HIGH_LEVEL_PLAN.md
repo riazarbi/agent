@@ -3,7 +3,7 @@
 ## Project Structure (Following Python Standards)
 
 ```
-python-agent/
+agent/
 ├── pyproject.toml              # Project metadata, dependencies
 ├── uv.lock                     # Lockfile
 ├── src/
@@ -196,7 +196,7 @@ dev = [
 - Use LiteLLM's built-in provider support
 
 #### Session Storage
-- Simple JSON files in ~/.python-agent/sessions/
+- Simple JSON files in ~/.agent/sessions/
 - Session ID format: YYYY-MM-DD-HH-MM-SS
 - No metadata beyond conversation history
 
@@ -207,7 +207,7 @@ dev = [
 - Optional confirmation prompts
 
 #### Configuration
-- YAML file at ~/.python-agent/config.yaml
+- YAML file at ~/.agent/config.yaml
 - Environment variables: API_KEY, MODEL, BASE_URL
 - Minimal configuration options only
 
