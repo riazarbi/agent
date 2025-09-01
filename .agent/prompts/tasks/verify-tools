@@ -1,9 +1,0 @@
-.agent/prompts/system/system.md
-.agent/prompts/system/tools.md
-.agent/prompts/rules/tool_usage.md
-.agent/prompts/rules/commands_usage.md
-.agent/prompts/rules/todo_usage.md
-.agent/prompts/system/context.md
-.agent/prompts/personas/mid-engineer.md
-.agent/prompts/rules/go_code_organization.md
-

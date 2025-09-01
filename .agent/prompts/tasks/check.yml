@@ -1,7 +1,0 @@
-- file: ../preprompts.yml
-- message:
-  - file: ../rules/go_agent_best_practices.md
-- message:
-  - file: ../rules/testing_guide.md
-- message:
-  - file: ../personas/senior-engineer.md
