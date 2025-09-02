@@ -7,6 +7,9 @@ from typing import Any
 
 import litellm
 
+from python_agent.bash_tool import BashTool
+from python_agent.session import Session, SessionManager
+
 
 class AgentError(Exception):
     """Base exception for agent-related errors."""
@@ -27,6 +30,15 @@ class Agent:
         """Initialize agent with configuration."""
         self.config = config
         self.conversation_history: list[dict[str, Any]] = []
+        self.session_manager = SessionManager()
+        self.current_session: Session | None = None
+        
+        # Initialize bash tool
+        self.bash_tool = BashTool(
+            confirmation_required=config.get("confirmation_required", False),
+            timeout=config.get("timeout", 30)
+        )
+        self.bash_tool.set_enabled(config.get("tools_enabled", True))
 
         # Configure LiteLLM base URL only
         if config.get("base_url"):
@@ -35,6 +47,22 @@ class Agent:
     def add_message(self, role: str, content: str) -> None:
         """Add message to conversation history."""
         self.conversation_history.append({"role": role, "content": content})
+        if self.current_session:
+            self.current_session.add_message(role, content)
+    
+    def start_new_session(self) -> None:
+        """Start a new conversation session."""
+        self.current_session = self.session_manager.create_session()
+        
+    def resume_from_session(self, session: Session) -> None:
+        """Resume conversation from an existing session."""
+        self.current_session = session
+        self.conversation_history = session.messages.copy()
+        
+    def save_current_session(self) -> None:
+        """Save current session to disk."""
+        if self.current_session:
+            self.session_manager.save_session(self.current_session)
 
     def chat_completion(self, messages: list[dict[str, Any]]) -> str:
         """Get chat completion from LiteLLM model."""
@@ -60,14 +88,25 @@ class Agent:
         """Run interactive conversation loop."""
         verbose = self.config.get("verbose", False)
 
+        # Start new session if not resuming
+        if not self.current_session:
+            self.start_new_session()
+            if verbose:
+                print(f"Started session: {self.current_session.session_id}")
+
         if not self.config.get("quiet", False):
-            print("AI Coding Agent (type 'exit' to quit)\n")
+            print("AI Coding Agent (type 'exit' to quit)")
+            if self.current_session:
+                print(f"Session: {self.current_session.session_id}\n")
 
         while True:
             try:
                 user_input = input("User: ").strip()
 
                 if user_input.lower() in ("exit", "quit", "bye"):
+                    self.save_current_session()
+                    if not self.config.get("quiet", False):
+                        print(f"Session saved: {self.current_session.session_id if self.current_session else 'none'}")
                     break
 
                 if not user_input:
@@ -82,9 +121,14 @@ class Agent:
                 self.add_message("assistant", response)
 
                 print(f"Agent: {response}\n")
+                
+                # Save session after each interaction
+                self.save_current_session()
 
             except KeyboardInterrupt:
-                print("\nGoodbye!")
+                print("\nSaving session...")
+                self.save_current_session()
+                print("Goodbye!")
                 break
             except ModelError as e:
                 print(f"Error: {e}")
