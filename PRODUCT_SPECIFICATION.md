@@ -2,7 +2,7 @@
 
 ## Overview
 
-An ultra-lightweight Python command-line AI coding agent under 400 lines of code total that uses LiteLLM for model integration and provides a single bash tool for system interaction. Focused on simplicity and core functionality only.
+An ultra-lightweight Python command-line AI coding agent under 1000 lines of code total that uses LiteLLM for model integration and provides a single bash tool for system interaction. Focused on simplicity and core functionality only.
 
 ## Core Requirements
 
@@ -67,7 +67,7 @@ An ultra-lightweight Python command-line AI coding agent under 400 lines of code
 ### Implementation Language
 - **Python 3.10+** using `uv` for package management
 - Following Python Development Standards from project documentation
-- **Target: Under 400 lines of code total**
+- **Target: Under 1000 lines of code total**
 
 ### Dependencies (Minimal)
 - **Click**: CLI framework
@@ -117,7 +117,7 @@ An ultra-lightweight Python command-line AI coding agent under 400 lines of code
 ## Design Principles
 
 ### Ultra-Minimalism
-- Maximum 400 lines of code total
+- Maximum 1000 lines of code total
 - Single tool only (bash)
 - No unnecessary features or complexity
 - Plain text output only
@@ -144,7 +144,7 @@ An ultra-lightweight Python command-line AI coding agent under 400 lines of code
 ## Competitive Analysis
 
 ### Differentiators
-- **Ultra-lightweight**: Under 400 lines total
+- **Ultra-lightweight**: Under 1000 lines total
 - **Single purpose**: Only bash tool execution
 - **LiteLLM integration**: Support for all major providers
 - **Minimal setup**: YAML config and go

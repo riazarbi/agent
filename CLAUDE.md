@@ -16,7 +16,7 @@ These instructions guide a coding agent to incrementally implement the Minimal A
 ## Critical Constraints
 
 ### Code Quality Requirements
-- **MAXIMUM 400 lines of code total** across all modules
+- **MAXIMUM 1000 lines of code total** across all modules
 - **MAXIMUM 100 lines per module** (target <100, hard limit 100)
 - **Python 3.10+ compatibility** required
 - **Ultra-minimal dependencies**: Click, LiteLLM, PyYAML only
@@ -196,14 +196,14 @@ If specifications seem to conflict:
 
 1. **PRODUCT_SPECIFICATION.md takes precedence** over implementation details
 2. **Python standards documents** take precedence for code style
-3. **400-line limit** is absolute and cannot be exceeded
+3. **1000-line limit** is absolute and cannot be exceeded
 4. **Ask for clarification** rather than making assumptions
 
 ## Quality Assurance Checklist
 
 Before marking a step complete, verify:
 
-- [ ] **Line Count**: Total project lines < 400, current module < 100
+- [ ] **Line Count**: Total project lines < 1000, current module < 100
 - [ ] **Dependencies**: Only Click, LiteLLM, PyYAML used
 - [ ] **Functionality**: Implemented feature works as specified
 - [ ] **Standards**: Follows Python development standards
@@ -225,7 +225,7 @@ A step is complete when:
 ### Project Completion  
 The project is complete when:
 - All 10 steps in HIGH_LEVEL_PLAN.md are marked complete
-- Total code is under 400 lines
+- Total code is under 1000 lines
 - All CLI modes work (interactive, single-shot, file, resume)
 - Basic tests pass
 - Installation via `uv tool install` works
@@ -243,7 +243,7 @@ The project is complete when:
 
 ## Emergency Procedures
 
-### If Line Count Approaches 400
+### If Line Count Approaches 1000
 1. **Stop implementation immediately**
 2. **Refactor existing code** to reduce lines
 3. **Simplify implementations** where possible
@@ -270,7 +270,7 @@ The project is complete when:
 2. Complete exactly one step from HIGH_LEVEL_PLAN.md  
 3. Update progress tracking before stopping
 4. Ensure next agent has clear instructions
-5. Never exceed 400 total lines of code
+5. Never exceed 1000 total lines of code
 6. Follow ultra-minimal design principles
 
-**The goal is a working, ultra-lightweight AI coding agent under 400 lines that does exactly what the specification requires - nothing more, nothing less.**
+**The goal is a working, ultra-lightweight AI coding agent under 1000 lines that does exactly what the specification requires - nothing more, nothing less.**
