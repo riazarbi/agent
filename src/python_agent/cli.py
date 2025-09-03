@@ -121,8 +121,8 @@ def main(
                 # Session resume mode
                 if verbose:
                     click.echo(f"Resuming session: {session_id}")
-                from python_agent.session import SessionManager, SessionError
-                
+                from python_agent.session import SessionError, SessionManager
+
                 session_manager = SessionManager()
                 try:
                     session = session_manager.load_session(session_id)
@@ -148,6 +148,7 @@ def main(
             click.echo(f"Unexpected error: {e}", err=True)
             if verbose:
                 import traceback
+
                 click.echo(traceback.format_exc(), err=True)
             return 1
 

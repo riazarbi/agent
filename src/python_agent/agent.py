@@ -32,11 +32,11 @@ class Agent:
         self.conversation_history: list[dict[str, Any]] = []
         self.session_manager = SessionManager()
         self.current_session: Session | None = None
-        
+
         # Initialize bash tool
         self.bash_tool = BashTool(
             confirmation_required=config.get("confirmation_required", False),
-            timeout=config.get("timeout", 30)
+            timeout=config.get("timeout", 30),
         )
         self.bash_tool.set_enabled(config.get("tools_enabled", True))
 
@@ -49,16 +49,21 @@ class Agent:
         self.conversation_history.append({"role": role, "content": content})
         if self.current_session:
             self.current_session.add_message(role, content)
-    
-    def start_new_session(self) -> None:
+
+    def start_new_session(self) -> Session:
         """Start a new conversation session."""
         self.current_session = self.session_manager.create_session()
-        
-    def resume_from_session(self, session: Session) -> None:
+        return self.current_session
+
+    def resume_from_session(self, session_or_id: Session | str) -> Session:
         """Resume conversation from an existing session."""
-        self.current_session = session
-        self.conversation_history = session.messages.copy()
-        
+        if isinstance(session_or_id, str):
+            self.current_session = self.session_manager.load_session(session_or_id)
+        else:
+            self.current_session = session_or_id
+        self.conversation_history = self.current_session.messages.copy()
+        return self.current_session
+
     def save_current_session(self) -> None:
         """Save current session to disk."""
         if self.current_session:
@@ -81,8 +86,10 @@ class Agent:
 
     def process_single_prompt(self, prompt: str) -> str:
         """Process single prompt and return response."""
-        messages = [{"role": "user", "content": prompt}]
-        return self.chat_completion(messages)
+        self.add_message("user", prompt)
+        response = self.chat_completion(self.conversation_history)
+        self.add_message("assistant", response)
+        return response
 
     def interactive_loop(self) -> None:
         """Run interactive conversation loop."""
@@ -91,7 +98,7 @@ class Agent:
         # Start new session if not resuming
         if not self.current_session:
             self.start_new_session()
-            if verbose:
+            if verbose and self.current_session:
                 print(f"Started session: {self.current_session.session_id}")
 
         if not self.config.get("quiet", False):
@@ -106,7 +113,9 @@ class Agent:
                 if user_input.lower() in ("exit", "quit", "bye"):
                     self.save_current_session()
                     if not self.config.get("quiet", False):
-                        print(f"Session saved: {self.current_session.session_id if self.current_session else 'none'}")
+                        print(
+                            f"Session saved: {self.current_session.session_id if self.current_session else 'none'}"
+                        )
                     break
 
                 if not user_input:
@@ -121,7 +130,7 @@ class Agent:
                 self.add_message("assistant", response)
 
                 print(f"Agent: {response}\n")
-                
+
                 # Save session after each interaction
                 self.save_current_session()
 

@@ -163,18 +163,28 @@ class TestValidateConfig:
 
     def test_raises_error_for_invalid_timeout(self):
         """Test validation error for invalid timeout values."""
-        with pytest.raises(ConfigurationError, match="timeout must be positive integer"):
+        with pytest.raises(
+            ConfigurationError, match="timeout must be positive integer"
+        ):
             validate_config({"timeout": 0, "max_tokens": 4000, "temperature": 0.7})
 
-        with pytest.raises(ConfigurationError, match="timeout must be positive integer"):
-            validate_config({"timeout": "invalid", "max_tokens": 4000, "temperature": 0.7})
+        with pytest.raises(
+            ConfigurationError, match="timeout must be positive integer"
+        ):
+            validate_config(
+                {"timeout": "invalid", "max_tokens": 4000, "temperature": 0.7}
+            )
 
     def test_raises_error_for_invalid_max_tokens(self):
         """Test validation error for invalid max_tokens values."""
-        with pytest.raises(ConfigurationError, match="max_tokens must be positive integer"):
+        with pytest.raises(
+            ConfigurationError, match="max_tokens must be positive integer"
+        ):
             validate_config({"timeout": 30, "max_tokens": 0, "temperature": 0.7})
 
-        with pytest.raises(ConfigurationError, match="max_tokens must be positive integer"):
+        with pytest.raises(
+            ConfigurationError, match="max_tokens must be positive integer"
+        ):
             validate_config({"timeout": 30, "max_tokens": -1, "temperature": 0.7})
 
     def test_raises_error_for_invalid_temperature(self):
@@ -186,7 +196,9 @@ class TestValidateConfig:
             validate_config({"timeout": 30, "max_tokens": 4000, "temperature": 2.1})
 
         with pytest.raises(ConfigurationError, match="temperature must be number"):
-            validate_config({"timeout": 30, "max_tokens": 4000, "temperature": "invalid"})
+            validate_config(
+                {"timeout": 30, "max_tokens": 4000, "temperature": "invalid"}
+            )
 
 
 class TestLoadConfiguration:

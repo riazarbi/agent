@@ -104,19 +104,7 @@ Session: 2025-09-03-15-30-45
 User: How do I list files in Python?
 Agent: You can list files in Python using several methods:
 
-1. Using `os.listdir()`:
-```python
-import os
-files = os.listdir('.')
-print(files)
-```
-
-2. Using `pathlib` (recommended):
-```python
-from pathlib import Path
-files = list(Path('.').iterdir())
-print(files)
-```
+yadda yadda...
 
 User: exit
 Session saved: 2025-09-03-15-30-45
@@ -128,26 +116,8 @@ Session saved: 2025-09-03-15-30-45
 $ agent --prompt "Write a Python function to calculate factorial"
 Agent: Here's a Python function to calculate factorial:
 
-```python
-def factorial(n):
-    """Calculate factorial of n using recursion."""
-    if n < 0:
-        raise ValueError("Factorial is not defined for negative numbers")
-    elif n == 0 or n == 1:
-        return 1
-    else:
-        return n * factorial(n - 1)
+yadda yadda...
 
-# Alternative iterative approach
-def factorial_iterative(n):
-    """Calculate factorial of n using iteration."""
-    if n < 0:
-        raise ValueError("Factorial is not defined for negative numbers")
-    result = 1
-    for i in range(2, n + 1):
-        result *= i
-    return result
-```
 ```
 
 ### File Input Mode
